@@ -9,7 +9,7 @@
 :root{--bg:#eef1f4;--surface:#fff;--text:#111827;--border:#d5dbe2;--primary:#184e77;--success:#0f766e;--danger:#b42318}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100dvh}button,input{font:inherit}
 .app{height:100dvh;display:flex;flex-direction:column;overflow:hidden}header{height:38px;flex:0 0 38px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;background:#111827;color:#fff;font-size:13px;font-weight:700}.dot{width:8px;height:8px;border-radius:50%;background:#64748b}.dot.ready{background:#22c55e}.dot.error{background:#ef4444}
-main{width:min(760px,100%);margin:0 auto;padding:4px;flex:1;min-height:0;display:flex}.scanner{width:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:8px}.camera{position:relative;flex:1;min-height:0;overflow:hidden;background:#08111f}video{width:100%;height:100%;display:block;object-fit:cover;background:#08111f}video.mirrored{transform:scaleX(-1)}
+main{width:min(760px,100%);margin:0 auto;padding:4px;flex:1;min-height:0;display:flex}.scanner{width:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:8px}.camera{position:relative;flex:0 0 auto;height:clamp(210px,42dvh,360px);min-height:0;overflow:hidden;background:#08111f}video{width:100%;height:100%;display:block;object-fit:cover;background:#08111f}video.mirrored{transform:scaleX(-1)}
 .frame{position:absolute;left:35%;top:18%;width:30%;height:64%;border:2px solid rgba(255,255,255,.96);border-radius:7px;box-shadow:0 0 0 9999px rgba(2,6,23,.18);pointer-events:none;transition:border-color .15s,box-shadow .15s;touch-action:none;user-select:none;-webkit-user-select:none}.frame.detecting{border-color:#67e8f9}.frame.ok{border-color:#34d399;box-shadow:0 0 0 9999px rgba(2,6,23,.18),0 0 0 3px rgba(52,211,153,.18)}.frame:before,.frame:after{content:"";position:absolute;left:12%;right:12%;height:1px;background:rgba(255,255,255,.16);pointer-events:none}.frame:before{top:34%}.frame:after{top:66%}.frame.editing{pointer-events:auto;cursor:move;border-color:#f8fafc;border-style:dashed;transition:none}.resize-handle{display:none;position:absolute;width:38px;height:38px;border-radius:50%;background:#fff;border:3px solid #184e77;box-shadow:0 2px 9px rgba(0,0,0,.28);touch-action:none}.frame.editing .resize-handle{display:block}.resize-handle.nw{left:-20px;top:-20px;cursor:nwse-resize}.resize-handle.ne{right:-20px;top:-20px;cursor:nesw-resize}.resize-handle.sw{left:-20px;bottom:-20px;cursor:nesw-resize}.resize-handle.se{right:-20px;bottom:-20px;cursor:nwse-resize}.frame-edit-controls{
   position:absolute;
   left:50%;
@@ -54,11 +54,13 @@ main{width:min(760px,100%);margin:0 auto;padding:4px;flex:1;min-height:0;display
 }
 .status{position:absolute;left:7px;top:7px;max-width:calc(100% - 52px);padding:5px 7px;border-radius:6px;background:rgba(15,23,42,.76);color:#fff;font-size:11px;font-weight:650;backdrop-filter:blur(5px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.start{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:0;border-radius:8px;padding:11px 15px;background:#fff;color:#111827;font-weight:750;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.22)}.stop{position:absolute;right:7px;top:7px;width:32px;height:29px;padding:0;border:1px solid rgba(255,255,255,.24);border-radius:6px;background:rgba(15,23,42,.72);color:#fff;cursor:pointer}.hidden{display:none!important}
 .result{padding:5px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;border-top:1px solid var(--border)}.signature{width:100%;min-width:0;height:40px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text);outline:none;font-size:17px;font-weight:760;letter-spacing:.015em}.signature:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(24,78,119,.1)}.open{height:40px;min-width:88px;padding:0 11px;border:0;border-radius:7px;background:var(--success);color:#fff;font-weight:750;cursor:pointer}.open:disabled{opacity:.4;cursor:not-allowed}.error{display:none;padding:0 6px 5px;color:var(--danger);font-size:11px}.error.show{display:block}.debug{display:none;position:fixed;z-index:30;left:5px;right:5px;bottom:52px;max-height:43dvh;overflow:auto;padding:7px;border-radius:7px;background:rgba(0,0,0,.9);color:#d1fae5;font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}.debug.show{display:block}
+.scan-history{flex:0 0 auto;max-height:170px;overflow:auto;border-top:1px solid var(--border);background:#f8fafc;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.scan-history-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 9px;border-bottom:1px solid #e2e8f0;background:rgba(248,250,252,.96);font-size:11px;font-weight:800;color:#475569;backdrop-filter:blur(5px)}.scan-history-count{font-variant-numeric:tabular-nums;color:#64748b}.scan-history-list{margin:0;padding:0;list-style:none}.scan-history-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-bottom:1px solid #e8edf2}.scan-history-item:last-child{border-bottom:0}.scan-history-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:34px;padding:5px 7px 5px 9px;color:inherit;text-decoration:none}.scan-history-link:hover,.scan-history-link:focus-visible{background:#eef4f8;outline:none}.scan-history-signature{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:780;letter-spacing:.01em;color:#184e77;text-decoration:underline;text-underline-offset:2px}.scan-history-time{font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#64748b;white-space:nowrap}.scan-history-delete{width:36px;min-height:34px;padding:0;border:0;border-left:1px solid #e2e8f0;background:#fff;color:#b42318;font-size:18px;line-height:1;cursor:pointer}.scan-history-delete:hover,.scan-history-delete:focus-visible{background:#fff1f2;outline:none}.scan-history-empty{padding:9px;color:#64748b;font-size:11px;text-align:center}
 @media(max-width:520px){
   header{height:34px;flex-basis:34px}
+  .camera{height:clamp(200px,36dvh,300px)}
   .result{grid-template-columns:minmax(0,1fr) auto;gap:4px}
   .open{min-width:72px;padding:0 8px}
-}@media(orientation:landscape) and (max-height:600px){header{display:none}.signature,.open{height:36px}}
+}@media(orientation:landscape) and (max-height:600px){header{display:none}.camera{height:clamp(180px,58dvh,280px)}.signature,.open{height:36px}}
 
 
 header{
@@ -78,7 +80,8 @@ header{
   width:min(270px,calc(100vw - 14px));padding:8px;
   border:1px solid #334155;border-radius:9px;
   background:#111827;color:#fff;
-  box-shadow:0 10px 30px rgba(0,0,0,.28)
+  box-shadow:0 10px 30px rgba(0,0,0,.28);
+  max-height:calc(100dvh - 50px);overflow:auto;overscroll-behavior:contain
 }
 
 .settings-toggle{
@@ -93,6 +96,7 @@ header{
   background:#1e293b;
   cursor:pointer;
 }
+.settings-toggle+.settings-toggle{margin-top:6px}
 .settings-toggle span{min-width:0}
 .settings-toggle strong{
   display:block;
@@ -356,6 +360,12 @@ main{
   .devconsole{min-height:330px}
 }
 
+/* Ohne Diagnosekonsole nutzt der Scanner wieder die volle kompakte Breite. */
+main.console-hidden{display:flex;width:min(760px,100%)}
+main.console-hidden .scanner{width:100%}
+@media(max-width:850px){main.console-hidden{width:100%;min-height:calc(100dvh - 42px)}}
+@media(max-width:520px){main.console-hidden{min-height:calc(100dvh - 38px)}.scan-history{max-height:145px}}
+
 </style>
 </head>
 <body>
@@ -378,6 +388,18 @@ main{
     </span>
     <input id="autoOpenToggle" type="checkbox">
   </label>
+  <label class="settings-toggle" for="diagnosticsToggle">
+    <span>
+      <strong>Diagnosekonsole anzeigen</strong>
+      <small>Konsole und Debug-Ansicht ein-/ausblenden</small>
+    </span>
+    <input id="diagnosticsToggle" type="checkbox">
+  </label>
+
+  <div class="settings-divider"></div>
+  <div class="settings-title">Scanverlauf</div>
+  <button id="clearScanHistoryButton" class="settings-action secondary" type="button">Scanverlauf löschen</button>
+  <div id="scanHistorySettingsValue" class="settings-value">0 gespeicherte Scans</div>
 
   <div class="settings-divider"></div>
   <div class="settings-title">Scanrahmen</div>
@@ -385,7 +407,7 @@ main{
   <button id="resetFrameButton" class="settings-action secondary" type="button">Rahmen zurücksetzen</button>
   <div id="frameSettingsValue" class="settings-value"></div>
 </div>
-<main><section class="scanner">
+<main id="main" class="console-hidden"><section class="scanner">
 <div class="camera">
 <video id="video" autoplay playsinline muted></video>
 <div id="frame" class="frame">
@@ -404,8 +426,12 @@ main{
 </div>
 <div class="result"><input id="sig" class="signature" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Signatur"><button id="open" class="open" disabled>Öffnen</button></div>
 <div id="error" class="error"></div>
+<div id="scanHistory" class="scan-history">
+  <div class="scan-history-head"><span>Scanverlauf</span><span id="scanHistoryCount" class="scan-history-count">0</span></div>
+  <ol id="scanHistoryList" class="scan-history-list"></ol>
+</div>
 </section>
-<aside class="devconsole">
+<aside id="devConsole" class="devconsole hidden">
   <div class="devhead">
     <span>Scanner-Diagnose</span>
     <div class="devhead-actions">
@@ -457,11 +483,11 @@ const RULES=[
 ];
 const video=document.getElementById('video'),frame=document.getElementById('frame'),statusEl=document.getElementById('status'),startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),sig=document.getElementById('sig'),openBtn=document.getElementById('open'),errorEl=document.getElementById('error'),dot=document.getElementById('dot'),debugEl=document.getElementById('debug');
 const cameraInfo=document.getElementById('cameraInfo'),frameInfo=document.getElementById('frameInfo'),burstInfo=document.getElementById('burstInfo'),ocrInfo=document.getElementById('ocrInfo'),candidateInfo=document.getElementById('candidateInfo'),devLog=document.getElementById('devLog'),clearLog=document.getElementById('clearLog'),copyDiagnosis=document.getElementById('copyDiagnosis'),diagnosisText=document.getElementById('diagnosisText'),diagFrameCanvas=document.getElementById('diagFrameCanvas'),diagLineImages=document.getElementById('diagLineImages'),diagMirrorLabel=document.getElementById('diagMirrorLabel');
-const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
-if(DEBUG)debugEl.classList.add('show');
+const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),diagnosticsToggle=document.getElementById('diagnosticsToggle'),clearScanHistoryButton=document.getElementById('clearScanHistoryButton'),scanHistorySettingsValue=document.getElementById('scanHistorySettingsValue'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
+const mainEl=document.getElementById('main'),devConsole=document.getElementById('devConsole'),scanHistoryList=document.getElementById('scanHistoryList'),scanHistoryCount=document.getElementById('scanHistoryCount');
 let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null;
 
-const SCANNER_BUILD='2026-08-07-fastpath-v1';
+const SCANNER_BUILD='2026-08-07-fastpath-v4';
 const FAST_OCR_TARGET_HEIGHT=480;
 const FAST_ACCEPT_CONFIDENCE=65;
 const FRAME_MIN_CONTRAST=22;
@@ -516,6 +542,7 @@ function lineInkStats(canvas){
 }
 
 function updateDiagnosisText(){
+  if(!diagnosticsEnabled)return;
   const out=[];
 
   out.push('=== SIGNATUR-SCANNER DIAGNOSE ===');
@@ -551,6 +578,8 @@ function updateDiagnosisText(){
 
   out.push('recognition: FAST_PATH single-frame + gray/block first; robust whole-frame fallbacks');
   out.push(`auto_open: ${autoOpenEnabled?'ON':'OFF'}`);
+  out.push(`diagnostics_visible: ${diagnosticsEnabled?'ON':'OFF'}`);
+  out.push(`scan_history_saved: ${scanHistoryEntries.length}`);
   out.push('');
   out.push(`cycles_saved: ${diagnosisCycles.length}`);
 
@@ -631,6 +660,7 @@ function setStatus(t,m=''){statusEl.textContent=t;frame.classList.toggle('detect
 function setError(t=''){errorEl.textContent=t;errorEl.classList.toggle('show',!!t)}
 function stamp(){const d=new Date();return d.toLocaleTimeString('de-CH',{hour12:false})+'.'+String(d.getMilliseconds()).padStart(3,'0')}
 function logDev(level,msg){
+  if(!diagnosticsEnabled)return;
   const row=document.createElement('div');
   row.className='logline '+level;
   row.innerHTML='<span class="time">'+stamp()+'</span>  '+escapeHtml(String(msg));
@@ -651,9 +681,13 @@ function mobile(){
 }
 
 const FRAME_STORAGE_KEY='sthbasel-signature-scanframe-v1';
-
 const AUTO_OPEN_STORAGE_KEY='sthbasel-signature-auto-open-v1';
+const DIAGNOSTICS_STORAGE_KEY='sthbasel-signature-diagnostics-v1';
+const SCAN_HISTORY_STORAGE_KEY='sthbasel-signature-history-v1';
+
 let autoOpenEnabled=false;
+let diagnosticsEnabled=false;
+let scanHistoryEntries=[];
 
 function loadAutoOpenSetting(){
   try{
@@ -677,10 +711,158 @@ function saveAutoOpenSetting(){
     'info',
     `Automatisch öffnen: ${autoOpenEnabled?'AN':'AUS'}`
   );
+  updateDiagnosisText();
+}
+
+function applyDiagnosticsVisibility(){
+  devConsole.classList.toggle('hidden',!diagnosticsEnabled);
+  mainEl.classList.toggle('console-hidden',!diagnosticsEnabled);
+  debugEl.classList.toggle('show',diagnosticsEnabled&&DEBUG);
+  diagnosticsToggle.checked=diagnosticsEnabled;
+  requestAnimationFrame(updateFrameInfo);
+}
+
+function loadDiagnosticsSetting(){
+  try{
+    diagnosticsEnabled=localStorage.getItem(DIAGNOSTICS_STORAGE_KEY)==='1';
+  }catch(_){
+    diagnosticsEnabled=false;
+  }
+  applyDiagnosticsVisibility();
+}
+
+function saveDiagnosticsSetting(){
+  diagnosticsEnabled=Boolean(diagnosticsToggle.checked);
+  try{
+    localStorage.setItem(
+      DIAGNOSTICS_STORAGE_KEY,
+      diagnosticsEnabled?'1':'0'
+    );
+  }catch(_){}
+  applyDiagnosticsVisibility();
+  logDev('info',`Diagnosekonsole: ${diagnosticsEnabled?'AN':'AUS'}`);
+  updateDiagnosisText();
+}
+
+function scanHistoryTimeLabel(ts){
+  const d=new Date(Number(ts)||Date.now());
+  return d.toLocaleString('de-CH',{
+    day:'2-digit',month:'2-digit',year:'2-digit',
+    hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
+  });
+}
+
+function renderScanHistory(){
+  scanHistoryList.innerHTML='';
+  scanHistoryCount.textContent=String(scanHistoryEntries.length);
+  scanHistorySettingsValue.textContent=scanHistoryEntries.length===1
+    ? '1 gespeicherter Scan'
+    : `${scanHistoryEntries.length} gespeicherte Scans`;
+
+  if(!scanHistoryEntries.length){
+    const empty=document.createElement('li');
+    empty.className='scan-history-empty';
+    empty.textContent='Noch keine Scans gespeichert.';
+    scanHistoryList.appendChild(empty);
+    return;
+  }
+
+  const fragment=document.createDocumentFragment();
+  scanHistoryEntries.forEach((entry,index)=>{
+    const row=document.createElement('li');
+    row.className='scan-history-item';
+
+    const link=document.createElement('a');
+    link.className='scan-history-link';
+    link.href=libraryUrlFor(entry.signature);
+    link.target='_blank';
+    link.rel='noopener';
+    link.title=`${entry.signature} in der Bibliothek öffnen`;
+
+    const signature=document.createElement('span');
+    signature.className='scan-history-signature';
+    signature.textContent=String(entry.signature||'');
+
+    const time=document.createElement('time');
+    time.className='scan-history-time';
+    time.dateTime=new Date(Number(entry.time)||Date.now()).toISOString();
+    time.textContent=scanHistoryTimeLabel(entry.time);
+
+    const remove=document.createElement('button');
+    remove.className='scan-history-delete';
+    remove.type='button';
+    remove.setAttribute('aria-label',`${entry.signature} aus Scanverlauf löschen`);
+    remove.title='Eintrag löschen';
+    remove.textContent='×';
+    remove.addEventListener('click',()=>removeScanHistoryEntry(index));
+
+    link.append(signature,time);
+    row.append(link,remove);
+    fragment.appendChild(row);
+  });
+  scanHistoryList.appendChild(fragment);
+}
+
+function persistScanHistory(){
+  try{
+    localStorage.setItem(SCAN_HISTORY_STORAGE_KEY,JSON.stringify(scanHistoryEntries));
+    return true;
+  }catch(e){
+    logDev('warn','Scanverlauf konnte nicht im Browser gespeichert werden: '+e.message);
+    return false;
+  }
+}
+
+function loadScanHistory(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(SCAN_HISTORY_STORAGE_KEY)||'[]');
+    scanHistoryEntries=Array.isArray(saved)
+      ? saved.filter(x=>x&&typeof x.signature==='string'&&x.signature.trim()).map(x=>({
+          signature:x.signature.trim(),
+          time:Number(x.time)||Date.now()
+        }))
+      : [];
+  }catch(e){
+    scanHistoryEntries=[];
+    logDev('warn','Scanverlauf konnte nicht aus Browser-Speicher geladen werden.');
+  }
+  renderScanHistory();
+}
+
+function addScanHistory(signature){
+  const value=String(signature||'').trim();
+  if(!value)return;
+  scanHistoryEntries.unshift({signature:value,time:Date.now()});
+  persistScanHistory();
+  renderScanHistory();
+  updateDiagnosisText();
+}
+
+function removeScanHistoryEntry(index){
+  if(!Number.isInteger(index)||index<0||index>=scanHistoryEntries.length)return;
+  const [removed]=scanHistoryEntries.splice(index,1);
+  persistScanHistory();
+  renderScanHistory();
+  updateDiagnosisText();
+  logDev('info',`Scanverlauf-Eintrag gelöscht: ${removed?.signature||'—'}`);
+}
+
+function clearScanHistory(){
+  scanHistoryEntries=[];
+  try{localStorage.removeItem(SCAN_HISTORY_STORAGE_KEY)}catch(_){}
+  renderScanHistory();
+  updateDiagnosisText();
+  clearScanHistoryButton.textContent='Scanverlauf gelöscht ✓';
+  setTimeout(()=>clearScanHistoryButton.textContent='Scanverlauf löschen',1400);
+  logDev('info','Gespeicherter Scanverlauf gelöscht.');
 }
 
 loadAutoOpenSetting();
+loadDiagnosticsSetting();
+loadScanHistory();
 autoOpenToggle.addEventListener('change',saveAutoOpenSetting);
+diagnosticsToggle.addEventListener('change',saveDiagnosticsSetting);
+clearScanHistoryButton.addEventListener('click',clearScanHistory);
 
 const DEFAULT_FRAME={x:.35,y:.18,w:.30,h:.64};
 let frameState={...DEFAULT_FRAME};
@@ -909,7 +1091,7 @@ frame.addEventListener('pointercancel',framePointerUp);
 
 window.addEventListener('resize',()=>requestAnimationFrame(updateFrameInfo));
 window.addEventListener('orientationchange',()=>setTimeout(updateFrameInfo,250));
-function reset(){invalid=0;history=[];lastAcceptedAt=0;diagnosisCycles=[];
+function reset(){invalid=0;history=[];accepted='';lastAcceptedAt=0;diagnosisCycles=[];
 setSummary(burstInfo,'Frame','—');
 setSummary(ocrInfo,'OCR',worker?'bereit':'noch nicht geladen');
 setSummary(candidateInfo,'Kandidat','—');
@@ -1633,6 +1815,7 @@ function accept(s){
   sig.value=s;
   openBtn.disabled=false;
   openBtn.textContent='Öffnen';
+  addScanHistory(s);
 
   setStatus('Erkannt','ok');
   logDev(
@@ -1716,7 +1899,7 @@ function copyCanvasScaled(src,dst){
 }
 
 function renderImageDiagnostics(cnd){
-  if(!cnd?.frameCanvas)return;
+  if(!diagnosticsEnabled||!cnd?.frameCanvas)return;
 
   copyCanvasScaled(cnd.frameCanvas,diagFrameCanvas);
 
@@ -1774,6 +1957,7 @@ function renderImageDiagnostics(cnd){
 }
 
 function saveDiagnosisCycle(cnd,shot,ocrMs){
+  if(!diagnosticsEnabled)return;
   diagnosisCycles.push({
     cycle:cycleNo,
     bestIndex:shot.index,
@@ -1817,6 +2001,7 @@ function saveDiagnosisCycle(cnd,shot,ocrMs){
 }
 
 function detailedDiagnosticLog(cnd){
+  if(!diagnosticsEnabled)return;
   const vr=videoRect();
 
   if(vr){
@@ -1845,6 +2030,7 @@ function detailedDiagnosticLog(cnd){
 }
 
 function renderBurst(shot){
+  if(!diagnosticsEnabled)return;
   const quality=shot.quality?'OK':'weich';
   const lines=shot.all.map(s=>
     `#${s.index}  sharp ${fmt(s.sharp,2)}  contrast ${fmt(s.contrast,1)}  score ${fmt(s.score,1)}${s.index===shot.index?'  ← BEST':''}`
@@ -1857,6 +2043,7 @@ function renderBurst(shot){
 }
 
 function renderCandidate(cnd,consensus=null,elapsed=0){
+  if(!diagnosticsEnabled)return;
   const best=cnd.bestAttempt;
   const cons=consensus
     ? `\nKonsens: ${consensus.n}/${consensus.required}${consensus.fast?' · Fast Path':''}`
@@ -2053,7 +2240,7 @@ clearLog.addEventListener('click',()=>{
   updateDiagnosisText();
   logDev('info','Konsole und Diagnosehistorie geleert.');
 });
-logDev('info',`Entwicklungsmodus bereit. Desktop-Webcam gespiegelt; Smartphone normal. Auto-Open=${autoOpenEnabled?'AN':'AUS'}.`);
+logDev('info',`Entwicklungsmodus bereit. Desktop-Webcam gespiegelt; Smartphone normal. Auto-Open=${autoOpenEnabled?'AN':'AUS'} · Diagnose=${diagnosticsEnabled?'AN':'AUS'} · Verlauf=${scanHistoryEntries.length}.`);
 updateDiagnosisText();
 startBtn.addEventListener('click',startCamera);
 stopBtn.addEventListener('click',()=>stopCamera(true));
