@@ -93,6 +93,136 @@ header{
   .menu-button{width:36px;height:30px}
 }
 
+
+.diag-section{
+  padding:7px;
+  border-bottom:1px solid #243047;
+  background:#0b1020;
+}
+.diag-heading{
+  margin-bottom:5px;
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  color:#94a3b8;
+  font-size:10px;
+  font-weight:750;
+}
+.diag-frame{
+  display:block;
+  width:100%;
+  max-height:190px;
+  object-fit:contain;
+  background:#020617;
+  border:1px solid #334155;
+  border-radius:5px;
+}
+.diag-lines{
+  margin-top:6px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px;
+}
+.diag-line{
+  min-width:0;
+  padding:4px;
+  border:1px solid #293548;
+  border-radius:5px;
+  background:#0f172a;
+}
+.diag-line-title{
+  margin-bottom:3px;
+  color:#cbd5e1;
+  font:10px/1.25 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.diag-line-images{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:3px;
+}
+.diag-line canvas{
+  display:block;
+  width:100%;
+  height:46px;
+  object-fit:contain;
+  background:#fff;
+  border-radius:3px;
+}
+.diag-alt{
+  margin-top:3px;
+  color:#94a3b8;
+  font:9px/1.25 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+@media(max-width:850px){
+  .diag-frame{max-height:210px}
+}
+
+
+.devconsole{
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+.devhead{
+  position:sticky;
+  top:0;
+  z-index:25;
+  background:#0b1020;
+}
+.devhead-actions{display:flex;align-items:center;gap:5px}
+.devclear.primary{
+  background:#184e77;
+  border-color:#28658f;
+  color:#fff;
+}
+.share-diagnosis{
+  flex:0 0 auto;
+  padding:7px;
+  border-bottom:1px solid #243047;
+  background:#0b1020;
+}
+.share-hint{
+  margin-bottom:4px;
+  color:#94a3b8;
+  font-size:10px;
+  font-weight:700;
+}
+.diagnosis-text{
+  display:block;
+  width:100%;
+  height:132px;
+  resize:vertical;
+  padding:6px;
+  border:1px solid #334155;
+  border-radius:5px;
+  outline:none;
+  background:#020617;
+  color:#dbeafe;
+  font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:pre;
+  overflow:auto;
+}
+.devsummary{flex:none}
+.diag-section{flex:none}
+.devlog{
+  flex:none !important;
+  min-height:180px !important;
+  overflow:visible !important;
+}
+@media(max-width:850px){
+  .devconsole{
+    overflow-y:auto !important;
+  }
+  .diagnosis-text{height:150px}
+  .devlog{min-height:220px !important}
+}
+
 /* Entwicklungsansicht */
 main{
   width:min(1240px,100%);
@@ -224,8 +354,15 @@ main{
 </section>
 <aside class="devconsole">
   <div class="devhead">
-    <span>Scanner-Konsole</span>
-    <button id="clearLog" class="devclear" type="button">Leeren</button>
+    <span>Scanner-Diagnose</span>
+    <div class="devhead-actions">
+      <button id="copyDiagnosis" class="devclear primary" type="button">Diagnose kopieren</button>
+      <button id="clearLog" class="devclear" type="button">Leeren</button>
+    </div>
+  </div>
+  <div class="share-diagnosis">
+    <div class="share-hint">Diesen Text hier in den Chat einfügen:</div>
+    <textarea id="diagnosisText" class="diagnosis-text" readonly spellcheck="false"></textarea>
   </div>
   <div class="devsummary">
     <div id="cameraInfo" class="devblock"><strong>Kamera</strong>
@@ -238,6 +375,14 @@ noch nicht gestartet</div>
 —</div>
     <div id="candidateInfo" class="devblock"><strong>Kandidat</strong>
 —</div>
+    <div class="diag-section">
+      <div class="diag-heading">
+        <span>Ganzbild-OCR</span>
+        <span id="diagMirrorLabel">kompletter OCR-Rahmen</span>
+      </div>
+      <canvas id="diagFrameCanvas" class="diag-frame"></canvas>
+      <div id="diagLineImages" class="diag-lines"></div>
+    </div>
   </div>
   <div id="devLog" class="devlog"></div>
 </aside>
@@ -258,10 +403,172 @@ const RULES=[
  {wl:'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+./-',norm:s=>s.replace(/\s+/g,'').replace(/[^0-9A-Za-z+./-]/g,''),valid:s=>/^[0-9A-Za-z+./-]{1,12}$/.test(s)}
 ];
 const video=document.getElementById('video'),frame=document.getElementById('frame'),statusEl=document.getElementById('status'),startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),sig=document.getElementById('sig'),openBtn=document.getElementById('open'),errorEl=document.getElementById('error'),dot=document.getElementById('dot'),debugEl=document.getElementById('debug');
-const cameraInfo=document.getElementById('cameraInfo'),frameInfo=document.getElementById('frameInfo'),burstInfo=document.getElementById('burstInfo'),ocrInfo=document.getElementById('ocrInfo'),candidateInfo=document.getElementById('candidateInfo'),devLog=document.getElementById('devLog'),clearLog=document.getElementById('clearLog');
+const cameraInfo=document.getElementById('cameraInfo'),frameInfo=document.getElementById('frameInfo'),burstInfo=document.getElementById('burstInfo'),ocrInfo=document.getElementById('ocrInfo'),candidateInfo=document.getElementById('candidateInfo'),devLog=document.getElementById('devLog'),clearLog=document.getElementById('clearLog'),copyDiagnosis=document.getElementById('copyDiagnosis'),diagnosisText=document.getElementById('diagnosisText'),diagFrameCanvas=document.getElementById('diagFrameCanvas'),diagLineImages=document.getElementById('diagLineImages'),diagMirrorLabel=document.getElementById('diagMirrorLabel');
 const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
 if(DEBUG)debugEl.classList.add('show');
-let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false;
+let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null;
+
+const SCANNER_BUILD='2026-08-07-diagnose-v1';
+
+function browserSummary(){
+  const ua=navigator.userAgent||'';
+  let browser='Unbekannt';
+  if(/Edg\//.test(ua))browser='Edge';
+  else if(/Firefox\//.test(ua))browser='Firefox';
+  else if(/CriOS\//.test(ua))browser='Chrome iOS';
+  else if(/FxiOS\//.test(ua))browser='Firefox iOS';
+  else if(/Chrome\//.test(ua))browser='Chrome';
+  else if(/Safari\//.test(ua))browser='Safari';
+  return `${browser} | ${navigator.platform||'—'} | touch=${navigator.maxTouchPoints||0}`;
+}
+
+function safeOneLine(v){
+  return String(v??'').replace(/\r?\n/g,' | ').replace(/\s+/g,' ').trim();
+}
+
+function lineInkStats(canvas){
+  if(!canvas||!canvas.width||!canvas.height)return null;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+  let dark=0,total=canvas.width*canvas.height;
+  let minX=canvas.width,minY=canvas.height,maxX=-1,maxY=-1;
+
+  // Fixed dark-pixel diagnostic only. It is not used for recognition.
+  for(let y=0;y<canvas.height;y++){
+    for(let x=0;x<canvas.width;x++){
+      const i=(y*canvas.width+x)*4;
+      const g=img.data[i]*.299+img.data[i+1]*.587+img.data[i+2]*.114;
+      if(g<110){
+        dark++;
+        if(x<minX)minX=x;
+        if(y<minY)minY=y;
+        if(x>maxX)maxX=x;
+        if(y>maxY)maxY=y;
+      }
+    }
+  }
+
+  const bbox=maxX>=0
+    ? `${minX},${minY}-${maxX},${maxY}`
+    : 'none';
+
+  return{
+    darkPct:total?dark/total*100:0,
+    bbox
+  };
+}
+
+function updateDiagnosisText(){
+  const out=[];
+
+  out.push('=== SIGNATUR-SCANNER DIAGNOSE ===');
+  out.push(`build: 2026-08-07-whole-frame-ocr-v2`);
+  out.push(`browser: ${browserSummary()}`);
+  out.push(`viewport: ${innerWidth}x${innerHeight} @ dpr ${window.devicePixelRatio||1}`);
+
+  if(cameraDiagnosis){
+    out.push(
+      `camera: ${cameraDiagnosis.width}x${cameraDiagnosis.height}`+
+      `${cameraDiagnosis.fps?' @ '+cameraDiagnosis.fps+'fps':''}`+
+      ` | facing=${cameraDiagnosis.facing}`+
+      ` | preview=${previewMirrored?'MIRRORED':'NORMAL'}`+
+      ` | OCR=UNMIRRORED`
+    );
+    out.push(`focus: ${cameraDiagnosis.focus}`);
+  }else{
+    out.push('camera: not started');
+  }
+
+  out.push(
+    `frame: x=${fmt(frameState.x*100,1)}% y=${fmt(frameState.y*100,1)}% `+
+    `w=${fmt(frameState.w*100,1)}% h=${fmt(frameState.h*100,1)}%`
+  );
+
+  const vr=videoRect();
+  if(vr){
+    out.push(
+      `roi_raw: x=${Math.round(vr.sx)} y=${Math.round(vr.sy)} `+
+      `w=${Math.round(vr.w)} h=${Math.round(vr.h)}`
+    );
+  }
+
+  out.push('recognition: WHOLE_FRAME_ONLY (no geometric line crops)');
+  out.push('');
+  out.push(`cycles_saved: ${diagnosisCycles.length}`);
+
+  for(const c of diagnosisCycles){
+    out.push('');
+    out.push(`--- cycle ${c.cycle} ---`);
+    out.push(
+      `burst_best: #${c.bestIndex} sharp=${fmt(c.sharp,2)} `+
+      `contrast=${fmt(c.contrast,1)} score=${fmt(c.score,1)}`
+    );
+    out.push(
+      'burst_all: '+
+      c.burst.map(s=>
+        `#${s.index}[sh=${fmt(s.sharp,2)},co=${fmt(s.contrast,1)},sc=${fmt(s.score,1)}]`
+      ).join(' ')
+    );
+
+    out.push(
+      `ocr_ms=${Math.round(c.ocrMs)} valid=${c.valid} `+
+      `signature=${c.signature||'—'} prefix=${c.prefix||'—'} `+
+      `known_prefix=${c.knownPrefix} best_attempt=${c.bestAttempt}`
+    );
+
+    for(const a of c.attempts){
+      out.push(
+        `ATTEMPT ${a.name}/${a.psmName}: ms=${Math.round(a.ms)} `+
+        `conf=${fmt(a.confidence,0)} valid=${a.valid} `+
+        `valid_lines=${a.validCount}/4 score=${fmt(a.score,1)}`
+      );
+
+      out.push(
+        `  raw_lines(${a.rawLines.length}): `+
+        (a.rawLines.map((x,i)=>`${i}="${safeOneLine(x)}"`).join(' | ')||'—')
+      );
+
+      out.push(
+        `  selected_indexes: ${a.selectedIndexes.length?a.selectedIndexes.join(','):'—'}`
+      );
+
+      if(a.parsed.length){
+        out.push(
+          '  parsed: '+
+          a.parsed.map((p,i)=>
+            `L${i+1}[raw="${p.raw}",value="${p.value}",`+
+            `valid=${p.valid},corr=${p.corrections}]`
+          ).join(' | ')
+        );
+      }
+    }
+  }
+
+  diagnosisText.value=out.join('\n');
+}
+
+async function copyDiagnosisText(){
+  updateDiagnosisText();
+  diagnosisText.focus();
+  diagnosisText.select();
+  diagnosisText.setSelectionRange(0,diagnosisText.value.length);
+
+  let copied=false;
+  try{
+    if(navigator.clipboard&&window.isSecureContext){
+      await navigator.clipboard.writeText(diagnosisText.value);
+      copied=true;
+    }
+  }catch(_){}
+
+  if(!copied){
+    try{copied=document.execCommand('copy')}catch(_){}
+  }
+
+  copyDiagnosis.textContent=copied?'Kopiert ✓':'Text markiert';
+  setTimeout(()=>copyDiagnosis.textContent='Diagnose kopieren',1400);
+}
+
 function setStatus(t,m=''){statusEl.textContent=t;frame.classList.toggle('detecting',m==='detecting');frame.classList.toggle('ok',m==='ok')}
 function setError(t=''){errorEl.textContent=t;errorEl.classList.toggle('show',!!t)}
 function stamp(){const d=new Date();return d.toLocaleTimeString('de-CH',{hour12:false})+'.'+String(d.getMilliseconds()).padStart(3,'0')}
@@ -342,11 +649,17 @@ function updateFrameInfo(){
     `Anzeige: ${Math.round(fr.width)} × ${Math.round(fr.height)} px`;
 
   frameSettingsValue.textContent=value;
+  if(typeof diagnosisText!=='undefined'&&diagnosisText)updateDiagnosisText();
 
   if(frameInfo){
     let source='—';
     const vr=videoRect();
-    if(vr)source=`${Math.round(vr.w)} × ${Math.round(vr.h)} Video-px`;
+    if(vr){
+      source=
+        `${Math.round(vr.w)} × ${Math.round(vr.h)} Video-px`+
+        `\nROI raw: x=${Math.round(vr.sx)}, y=${Math.round(vr.sy)}`+
+        `\nOCR-Orientierung: normal`;
+    }
     setSummary(frameInfo,'Scanrahmen',value+'\nQuelle: '+source);
   }
 }
@@ -507,10 +820,16 @@ frame.addEventListener('pointercancel',framePointerUp);
 
 window.addEventListener('resize',()=>requestAnimationFrame(updateFrameInfo));
 window.addEventListener('orientationchange',()=>setTimeout(updateFrameInfo,250));
-function reset(){invalid=0;history=[];lastAcceptedAt=0;
+function reset(){invalid=0;history=[];lastAcceptedAt=0;diagnosisCycles=[];
 setSummary(burstInfo,'Frame','—');
 setSummary(ocrInfo,'OCR',worker?'bereit':'noch nicht geladen');
 setSummary(candidateInfo,'Kandidat','—');
+diagLineImages.innerHTML='';
+const dc=diagFrameCanvas.getContext('2d');
+diagFrameCanvas.width=1;
+diagFrameCanvas.height=1;
+dc.clearRect(0,0,1,1);
+updateDiagnosisText();
 }
 function schedule(ms=240){clearTimeout(timer);if(stream)timer=setTimeout(loop,ms)}
 async function startCamera(){
@@ -562,11 +881,19 @@ async function startCamera(){
       `\nVorschau: ${previewMirrored?'gespiegelt':'normal'}`+
       `\nfocus: ${settings.focusMode||focusResult}`
     );
+    cameraDiagnosis={
+      width:settings.width||video.videoWidth||0,
+      height:settings.height||video.videoHeight||0,
+      fps:settings.frameRate?fmt(settings.frameRate,1):'',
+      facing:settings.facingMode||'—',
+      focus:settings.focusMode||focusResult||'—'
+    };
     logDev('ok',
       `Kamera aktiv: ${settings.width||video.videoWidth}×${settings.height||video.videoHeight}`+
       `${settings.frameRate?' @ '+fmt(settings.frameRate,1)+' fps':''}`
     );
     updateFrameInfo();
+    updateDiagnosisText();
 
     startBtn.classList.add('hidden');
     stopBtn.classList.remove('hidden');
@@ -749,31 +1076,601 @@ async function ensureOCR(){
     throw e;
   }
 }
-async function ocrCanvas(c,rule){const w=await ensureOCR();if(currentWL!==rule.wl){await w.setParameters({tessedit_char_whitelist:rule.wl,tessedit_pageseg_mode:Tesseract.PSM?.SINGLE_WORD??'8'});currentWL=rule.wl}const r=await w.recognize(c),raw=(r.data?.text||'').trim(),value=rule.norm(raw),confidence=Number(r.data?.confidence||0);return{raw,value,confidence,valid:rule.valid(value)}}
-function better(a,b,rule){if(!a)return b;if(!b)return a;const score=r=>(r.valid?60:0)+Math.min(40,Math.max(0,r.confidence)*.4);const sa=score(a),sb=score(b);if(Math.abs(sa-sb)<2&&rule.valid(a.value)&&rule.valid(b.value))return a.value.length<=b.value.length?a:b;return sb>sa?b:a}
-async function readLine(src,i,force=false){
-  const rule=RULES[i];
-  const bin=await ocrCanvas(prep(src,true),rule);
-  bin.variant='binary';
-  bin.alternatives=[{variant:'binary',raw:bin.raw,value:bin.value,confidence:bin.confidence,valid:bin.valid}];
-  let best=bin;
+async function ocrCanvas(c,rule){
+  const w=await ensureOCR();
+  const psm=Tesseract.PSM?.SINGLE_WORD??'8';
 
-  if(force||!best.valid||best.confidence<66){
-    const gray=await ocrCanvas(prep(src,false),rule);
-    gray.variant='gray';
-    const alternatives=[
-      ...bin.alternatives,
-      {variant:'gray',raw:gray.raw,value:gray.value,confidence:gray.confidence,valid:gray.valid}
-    ];
-    best=better(bin,gray,rule);
-    best={...best,variant:(best===gray?'gray':'binary'),alternatives};
+  if(currentWL!==rule.wl||currentPSM!==psm){
+    await w.setParameters({
+      tessedit_char_whitelist:rule.wl,
+      tessedit_pageseg_mode:psm
+    });
+    currentWL=rule.wl;
+    currentPSM=psm;
   }
-  return best;
+
+  const r=await w.recognize(c);
+  const raw=(r.data?.text||'').trim();
+  const value=rule.norm(raw);
+  const confidence=Number(r.data?.confidence||0);
+
+  return{raw,value,confidence,valid:rule.valid(value)};
 }
-function build(v){return `${v[0]}.${v[1]}${v[2]}-${v[3]}`}
-async function recognize(c){const rs=lineRects(c),src=rs.map(r=>crop(c,r)),reads=[];for(let i=0;i<4;i++)reads.push(await readLine(src[i],i,false));let vals=reads.map(r=>r.value),prefix=`${vals[0]}.${vals[1]}`;if(!KNOWN_PREFIXES.has(prefix)||reads[0].confidence<72||reads[1].confidence<72){const a0=await readLine(src[0],0,true),a1=await readLine(src[1],1,true),combos=[[reads[0],reads[1]],[a0,reads[1]],[reads[0],a1],[a0,a1]];let bp=combos[0],bs=-Infinity;for(const p of combos){if(!p[0].valid||!p[1].valid)continue;const pre=`${p[0].value}.${p[1].value}`,s=p[0].confidence+p[1].confidence+(KNOWN_PREFIXES.has(pre)?18:0);if(s>bs){bs=s;bp=p}}reads[0]=bp[0];reads[1]=bp[1];vals=reads.map(r=>r.value);prefix=`${vals[0]}.${vals[1]}`}const valid=reads.every((r,i)=>RULES[i].valid(r.value)),avg=reads.reduce((s,r)=>s+Math.max(0,r.confidence),0)/4;return{valid,signature:valid?build(reads.map(r=>r.value)):'',prefix,knownPrefix:valid&&KNOWN_PREFIXES.has(prefix),avgConfidence:avg,minConfidence:Math.min(...reads.map(r=>Math.max(0,r.confidence))),readings:reads,rects:rs}}
+
+
+function prepWhole(src,binary=true){
+  /*
+   * Anders als die alte Zeilen-OCR wird das komplette Etikett gemeinsam
+   * verarbeitet. 900 px Höhe gibt Tesseract genügend Zeichenpixel, ohne die
+   * Browser auf dem iPhone unnötig zu belasten.
+   */
+  const targetH=900;
+  const pad=28;
+  const scale=targetH/src.height;
+  const targetW=Math.max(220,Math.round(src.width*scale));
+
+  const scaled=document.createElement('canvas');
+  scaled.width=targetW;
+  scaled.height=targetH;
+
+  const sx=scaled.getContext('2d',{willReadFrequently:true});
+  sx.fillStyle='#fff';
+  sx.fillRect(0,0,targetW,targetH);
+  sx.imageSmoothingEnabled=true;
+  sx.imageSmoothingQuality='high';
+  sx.drawImage(src,0,0,targetW,targetH);
+
+  const im=sx.getImageData(0,0,targetW,targetH);
+  const gray=new Uint8Array(targetW*targetH);
+  const hist=new Uint32Array(256);
+
+  for(let i=0,p=0;i<im.data.length;i+=4,p++){
+    const g=Math.round(
+      im.data[i]*.299+
+      im.data[i+1]*.587+
+      im.data[i+2]*.114
+    );
+    gray[p]=g;
+    hist[g]++;
+  }
+
+  /*
+   * Perzentil-Kontrastspreizung ist robust gegen die orange Etikettfarbe,
+   * weiße Etiketten und einzelne Reflexe.
+   */
+  const p03=percentile(hist,gray.length,.03);
+  const p97=percentile(hist,gray.length,.97);
+  const span=Math.max(35,p97-p03);
+
+  for(let i=0;i<gray.length;i++){
+    gray[i]=Math.max(
+      0,
+      Math.min(255,Math.round((gray[i]-p03)*255/span))
+    );
+  }
+
+  const out=document.createElement('canvas');
+  out.width=targetW+pad*2;
+  out.height=targetH+pad*2;
+
+  const ox=out.getContext('2d');
+  ox.fillStyle='#fff';
+  ox.fillRect(0,0,out.width,out.height);
+
+  const oi=ox.createImageData(targetW,targetH);
+
+  if(binary){
+    /*
+     * Adaptive lokale Schwelle. Weil jetzt das ganze Label verarbeitet wird,
+     * ist das Fenster deutlich größer als bei der alten Einzelzeilenlogik.
+     */
+    const integral=new Uint32Array((targetW+1)*(targetH+1));
+
+    for(let y=1;y<=targetH;y++){
+      let row=0;
+      for(let x=1;x<=targetW;x++){
+        row+=gray[(y-1)*targetW+x-1];
+        integral[y*(targetW+1)+x]=
+          integral[(y-1)*(targetW+1)+x]+row;
+      }
+    }
+
+    const radius=Math.max(22,Math.round(Math.min(targetW,targetH)*.055));
+    const offset=16;
+
+    for(let y=0;y<targetH;y++){
+      const ya=Math.max(0,y-radius);
+      const yb=Math.min(targetH-1,y+radius);
+
+      for(let x=0;x<targetW;x++){
+        const xa=Math.max(0,x-radius);
+        const xb=Math.min(targetW-1,x+radius);
+
+        const A=integral[ya*(targetW+1)+xa];
+        const B=integral[ya*(targetW+1)+xb+1];
+        const C=integral[(yb+1)*(targetW+1)+xa];
+        const D=integral[(yb+1)*(targetW+1)+xb+1];
+
+        const area=(xb-xa+1)*(yb-ya+1);
+        const mean=(D-B-C+A)/area;
+        const g=gray[y*targetW+x];
+        const v=g<mean-offset?0:255;
+
+        const p=(y*targetW+x)*4;
+        oi.data[p]=v;
+        oi.data[p+1]=v;
+        oi.data[p+2]=v;
+        oi.data[p+3]=255;
+      }
+    }
+  }else{
+    for(let i=0;i<gray.length;i++){
+      const v=gray[i];
+      const p=i*4;
+      oi.data[p]=v;
+      oi.data[p+1]=v;
+      oi.data[p+2]=v;
+      oi.data[p+3]=255;
+    }
+  }
+
+  ox.putImageData(oi,pad,pad);
+  return out;
+}
+
+function splitOCRLines(raw){
+  return String(raw||'')
+    .replace(/\r/g,'')
+    .split('\n')
+    .map(s=>s.trim())
+    .filter(Boolean)
+    .map(s=>s.replace(/\s+/g,''));
+}
+
+function normalizeTokenForPosition(raw,pos){
+  let s=String(raw||'').trim().replace(/\s+/g,'');
+  let corrections=0;
+
+  if(pos===0||pos===1){
+    /*
+     * In den ersten beiden Zeilen sind ausschließlich Ziffern erlaubt.
+     * Deshalb dürfen hier eindeutige typische OCR-Verwechslungen korrigiert
+     * werden. Andere Buchstaben machen die Zeile weiterhin ungültig.
+     */
+    const map={
+      O:'0',o:'0',Q:'0',
+      I:'1',i:'1',L:'1',l:'1','|':'1',
+      Z:'2',z:'2',
+      S:'5',s:'5',
+      B:'8'
+    };
+
+    let out='';
+    for(const ch of s){
+      if(/[0-9]/.test(ch)){
+        out+=ch;
+      }else if(map[ch]!==undefined){
+        out+=map[ch];
+        corrections++;
+      }else if(/[.,:;'"`_-]/.test(ch)){
+        corrections++;
+      }else{
+        return{raw:s,value:s,valid:false,corrections:99};
+      }
+    }
+
+    s=out;
+    const valid=pos===0
+      ? /^(10|[1-9])$/.test(s)
+      : /^\d{1,8}$/.test(s);
+
+    return{raw:String(raw||''),value:s,valid,corrections};
+  }
+
+  if(pos===2){
+    /*
+     * Dritte Zeile: 3–4 Großbuchstaben. Auch hier können häufige
+     * Ziffer/Buchstaben-Verwechslungen sicher zurückgeführt werden.
+     */
+    const map={
+      '0':'O',
+      '1':'I',
+      '2':'Z',
+      '5':'S',
+      '8':'B'
+    };
+
+    let out='';
+    for(const ch of s.toUpperCase()){
+      if(/[A-Z]/.test(ch)){
+        out+=ch;
+      }else if(map[ch]!==undefined){
+        out+=map[ch];
+        corrections++;
+      }else if(/[.,:;'"`_-]/.test(ch)){
+        corrections++;
+      }else{
+        return{raw:String(raw||''),value:s,valid:false,corrections:99};
+      }
+    }
+
+    s=out;
+    return{
+      raw:String(raw||''),
+      value:s,
+      valid:/^[A-Z]{3,4}$/.test(s),
+      corrections
+    };
+  }
+
+  /*
+   * Vierte Zeile ist absichtlich liberal: Zahlen sind der Normalfall,
+   * aber Editionen wie "1ed4", Buchstaben und Sonderzeichen müssen möglich
+   * bleiben. Leerzeichen werden entfernt, Groß-/Kleinschreibung bleibt erhalten.
+   */
+  s=s.replace(/[^0-9A-Za-z+./-]/g,'');
+  return{
+    raw:String(raw||''),
+    value:s,
+    valid:/^[0-9A-Za-z+./-]{1,12}$/.test(s),
+    corrections:0
+  };
+}
+
+function scoreFourLines(rawLines,indexes,ocrConfidence){
+  const parsed=indexes.map((idx,pos)=>
+    normalizeTokenForPosition(rawLines[idx],pos)
+  );
+
+  const validCount=parsed.filter(x=>x.valid).length;
+  const corrections=parsed.reduce(
+    (sum,x)=>sum+(x.corrections>=99?8:x.corrections),
+    0
+  );
+
+  let score=validCount*100-corrections*7;
+
+  const gaps=
+    (indexes[1]-indexes[0]-1)+
+    (indexes[2]-indexes[1]-1)+
+    (indexes[3]-indexes[2]-1);
+
+  if(gaps===0)score+=34;
+  else score-=gaps*8;
+
+  // Text nahe dem oberen Bereich des OCR-Outputs ist wahrscheinlicher das Label.
+  score-=indexes[0]*3;
+
+  if(validCount===4){
+    const prefix=`${parsed[0].value}.${parsed[1].value}`;
+    if(KNOWN_PREFIXES.has(prefix))score+=42;
+
+    // Zahlen sind in Zeile 4 mit Abstand der häufigste Fall.
+    if(/^\d+$/.test(parsed[3].value))score+=18;
+    else if(/\d/.test(parsed[3].value))score+=8;
+
+    score+=Math.max(0,Math.min(100,ocrConfidence))*.12;
+  }
+
+  return{
+    parsed,
+    indexes,
+    valid:validCount===4,
+    validCount,
+    corrections,
+    gaps,
+    score
+  };
+}
+
+function bestCandidateFromRaw(raw,ocrConfidence=0){
+  const lines=splitOCRLines(raw);
+
+  if(lines.length<4){
+    return{
+      valid:false,
+      lines,
+      parsed:[],
+      indexes:[],
+      score:-Infinity,
+      reason:`nur ${lines.length} OCR-Zeilen`
+    };
+  }
+
+  /*
+   * Zuerst werden zusammenhängende Viererblöcke geprüft. Falls Tesseract eine
+   * zusätzliche Buchaufschrift dazwischen erkennt, werden danach auch Kombinationen
+   * mit übersprungenen Störzeilen getestet.
+   */
+  const combos=[];
+
+  for(let i=0;i<=lines.length-4;i++){
+    combos.push([i,i+1,i+2,i+3]);
+  }
+
+  const maxLines=Math.min(lines.length,10);
+  for(let a=0;a<maxLines-3;a++){
+    for(let b=a+1;b<maxLines-2;b++){
+      for(let c=b+1;c<maxLines-1;c++){
+        for(let d=c+1;d<maxLines;d++){
+          if(b===a+1&&c===b+1&&d===c+1)continue;
+          combos.push([a,b,c,d]);
+        }
+      }
+    }
+  }
+
+  let best=null;
+  for(const indexes of combos){
+    const candidate=scoreFourLines(lines,indexes,ocrConfidence);
+    if(!best||candidate.score>best.score)best=candidate;
+  }
+
+  return{
+    ...best,
+    lines,
+    reason:best?.valid?'ok':`beste Variante nur ${best?.validCount||0}/4 gültig`
+  };
+}
+
+async function ocrWholeAttempt(canvas,name,psm,psmName){
+  const w=await ensureOCR();
+  const whitelist='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+./-';
+
+  if(currentWL!==whitelist||currentPSM!==psm){
+    await w.setParameters({
+      tessedit_char_whitelist:whitelist,
+      tessedit_pageseg_mode:psm,
+      preserve_interword_spaces:'1'
+    });
+    currentWL=whitelist;
+    currentPSM=psm;
+  }
+
+  const started=performance.now();
+  const r=await w.recognize(canvas);
+  const ms=performance.now()-started;
+  const raw=(r.data?.text||'').trim();
+  const confidence=Number(r.data?.confidence||0);
+  const candidate=bestCandidateFromRaw(raw,confidence);
+
+  return{
+    name,
+    psmName,
+    psm,
+    raw,
+    confidence,
+    ms,
+    lines:splitOCRLines(raw),
+    candidate,
+    canvas
+  };
+}
+
+function attemptScore(a){
+  let score=a.candidate?.score??-Infinity;
+  if(a.candidate?.valid)score+=500;
+  return score;
+}
+
+async function recognize(c){
+  const gray=prepWhole(c,false);
+  const binary=prepWhole(c,true);
+
+  const PSM_BLOCK=Tesseract.PSM?.SINGLE_BLOCK??'6';
+  const PSM_COLUMN=Tesseract.PSM?.SINGLE_COLUMN??'4';
+  const PSM_SPARSE=Tesseract.PSM?.SPARSE_TEXT??'11';
+
+  const attempts=[];
+
+  /*
+   * Alle Versuche sehen immer das vollständige Scanfenster.
+   * Keine Zeile wird mehr geometrisch ausgeschnitten.
+   */
+  attempts.push(
+    await ocrWholeAttempt(gray,'gray/block',PSM_BLOCK,'SINGLE_BLOCK')
+  );
+  attempts.push(
+    await ocrWholeAttempt(binary,'binary/block',PSM_BLOCK,'SINGLE_BLOCK')
+  );
+
+  let validAttempts=attempts.filter(a=>a.candidate.valid);
+
+  /*
+   * Nur falls die normalen Block-Läufe keine komplette Signatur liefern,
+   * werden weitere Ganzbild-Segmentierungen probiert.
+   */
+  if(!validAttempts.length){
+    attempts.push(
+      await ocrWholeAttempt(binary,'binary/column',PSM_COLUMN,'SINGLE_COLUMN')
+    );
+    validAttempts=attempts.filter(a=>a.candidate.valid);
+  }
+
+  if(!validAttempts.length){
+    attempts.push(
+      await ocrWholeAttempt(gray,'gray/sparse',PSM_SPARSE,'SPARSE_TEXT')
+    );
+  }
+
+  attempts.sort((a,b)=>attemptScore(b)-attemptScore(a));
+  const best=attempts[0];
+  const candidate=best.candidate;
+  const parsed=candidate?.parsed||[];
+
+  const valid=Boolean(candidate?.valid);
+  const values=valid?parsed.map(x=>x.value):[];
+  const prefix=valid?`${values[0]}.${values[1]}`:'';
+
+  const readings=parsed.map((p,i)=>({
+    raw:p.raw,
+    value:p.value,
+    valid:p.valid,
+    corrections:p.corrections,
+    sourceLineIndex:candidate.indexes?.[i]??-1
+  }));
+
+  return{
+    valid,
+    signature:valid?build(values):'',
+    prefix,
+    knownPrefix:valid&&KNOWN_PREFIXES.has(prefix),
+    avgConfidence:best.confidence,
+    minConfidence:best.confidence,
+    readings,
+    frameCanvas:c,
+    attempts,
+    bestAttempt:best
+  };
+}
+
+function build(values){
+  return `${values[0]}.${values[1]}${values[2]}-${values[3]}`;
+}
+
 function register(c){const now=Date.now();history=history.filter(x=>now-x.time<16000);history.push({signature:c.signature,time:now});const same=history.filter(x=>x.signature===c.signature);const n=same.length,required=c.knownPrefix?2:3;return{n,required,ok:n>=required}}
 function accept(s){if(Date.now()<manualUntil)return;accepted=s;sig.value=s;openBtn.disabled=false;setStatus('Erkannt','ok');setTimeout(()=>{if(stream&&!busy)setStatus('Weiter scannen…')},1300)}
+
+
+function copyCanvasScaled(src,dst){
+  if(!src||!dst)return;
+  const maxW=720;
+  const scale=Math.min(1,maxW/src.width);
+  dst.width=Math.max(1,Math.round(src.width*scale));
+  dst.height=Math.max(1,Math.round(src.height*scale));
+  const ctx=dst.getContext('2d');
+  ctx.clearRect(0,0,dst.width,dst.height);
+  ctx.drawImage(src,0,0,dst.width,dst.height);
+}
+
+function renderImageDiagnostics(cnd){
+  if(!cnd?.frameCanvas)return;
+
+  copyCanvasScaled(cnd.frameCanvas,diagFrameCanvas);
+
+  diagMirrorLabel.textContent=
+    previewMirrored
+      ?'OCR-Rohbild: komplett & nicht gespiegelt'
+      :'OCR-Rohbild: kompletter Rahmen';
+
+  diagLineImages.innerHTML='';
+
+  for(const attempt of cnd.attempts||[]){
+    const card=document.createElement('div');
+    card.className='diag-line';
+
+    const title=document.createElement('div');
+    title.className='diag-line-title';
+    title.textContent=
+      `${attempt.name} · ${attempt.psmName} · ${Math.round(attempt.ms)} ms`;
+
+    const images=document.createElement('div');
+    images.className='diag-line-images';
+    images.style.gridTemplateColumns='1fr';
+
+    const processed=document.createElement('canvas');
+    copyCanvasScaled(attempt.canvas,processed);
+    processed.style.height='92px';
+    images.appendChild(processed);
+
+    const alt=document.createElement('div');
+    alt.className='diag-alt';
+
+    const rawLines=attempt.lines
+      .map((x,i)=>`${i}: ${x}`)
+      .join(' | ');
+
+    const selected=attempt.candidate?.indexes?.length
+      ? attempt.candidate.indexes.join(',')
+      : '—';
+
+    const parsed=attempt.candidate?.parsed?.length
+      ? attempt.candidate.parsed.map((p,i)=>
+          `L${i+1}="${p.value}" ${p.valid?'OK':'FAIL'}`
+        ).join(' ')
+      : '—';
+
+    alt.textContent=
+      `OCR: ${rawLines||'—'}\n`+
+      `selected lines: ${selected}\n`+
+      `${parsed}\n`+
+      `conf ${fmt(attempt.confidence,0)}% · score ${fmt(attempt.candidate?.score,1)}`;
+
+    card.append(title,images,alt);
+    diagLineImages.appendChild(card);
+  }
+}
+
+function saveDiagnosisCycle(cnd,shot,ocrMs){
+  diagnosisCycles.push({
+    cycle:cycleNo,
+    bestIndex:shot.index,
+    sharp:shot.m.sharp,
+    contrast:shot.m.contrast,
+    score:shot.score,
+    burst:shot.all.map(s=>({
+      index:s.index,
+      sharp:s.sharp,
+      contrast:s.contrast,
+      score:s.score
+    })),
+    ocrMs,
+    valid:cnd.valid,
+    signature:cnd.signature,
+    prefix:cnd.prefix,
+    knownPrefix:cnd.knownPrefix,
+    bestAttempt:cnd.bestAttempt?.name||'—',
+    attempts:(cnd.attempts||[]).map(a=>({
+      name:a.name,
+      psmName:a.psmName,
+      ms:a.ms,
+      raw:safeOneLine(a.raw),
+      rawLines:a.lines,
+      confidence:a.confidence,
+      selectedIndexes:a.candidate?.indexes||[],
+      valid:a.candidate?.valid||false,
+      validCount:a.candidate?.validCount||0,
+      score:a.candidate?.score??-9999,
+      parsed:(a.candidate?.parsed||[]).map(p=>({
+        raw:safeOneLine(p.raw),
+        value:p.value,
+        valid:p.valid,
+        corrections:p.corrections
+      }))
+    }))
+  });
+
+  if(diagnosisCycles.length>3)diagnosisCycles.shift();
+  updateDiagnosisText();
+}
+
+function detailedDiagnosticLog(cnd){
+  const vr=videoRect();
+
+  if(vr){
+    logDev(
+      'info',
+      `ROI: preview=${previewMirrored?'gespiegelt':'normal'}, OCR=normal, `+
+      `raw x=${Math.round(vr.sx)} y=${Math.round(vr.sy)} `+
+      `w=${Math.round(vr.w)} h=${Math.round(vr.h)}, `+
+      `capture=${cnd.frameCanvas.width}×${cnd.frameCanvas.height}`
+    );
+  }
+
+  for(const a of cnd.attempts||[]){
+    const raw=a.lines.map((x,i)=>`${i}:"${x}"`).join(' ');
+    const selected=a.candidate?.indexes?.join(',')||'—';
+    const parsed=(a.candidate?.parsed||[]).map((p,i)=>
+      `L${i+1}="${p.value}" ${p.valid?'OK':'FAIL'}`
+    ).join(' ');
+
+    logDev(
+      a.candidate?.valid?'ok':'ocr',
+      `${a.name}/${a.psmName}: lines=[${raw}] selected=[${selected}] `+
+      `${parsed} conf=${fmt(a.confidence,0)} score=${fmt(a.candidate?.score,1)}`
+    );
+  }
+}
 
 function renderBurst(shot){
   const quality=shot.quality?'OK':'weich';
@@ -788,41 +1685,48 @@ function renderBurst(shot){
 }
 
 function renderCandidate(cnd,consensus=null,elapsed=0){
-  const lineText=cnd.readings.map((r,i)=>{
-    const ok=r.valid?'✓':'✗';
-    const raw=(r.raw||'').replace(/\s+/g,' ');
-    return `L${i+1} ${ok} raw="${raw}" → "${r.value}"  conf ${fmt(r.confidence,0)}%  ${r.variant||''}`;
-  }).join('\n');
-
-  const invalidLines=cnd.readings
-    .map((r,i)=>r.valid?null:`L${i+1}`)
-    .filter(Boolean)
-    .join(', ');
-
+  const best=cnd.bestAttempt;
   const cons=consensus
     ? `\nKonsens: ${consensus.n}/${consensus.required}`
     : '';
 
+  const parsed=(best?.candidate?.parsed||[])
+    .map((p,i)=>`L${i+1}: "${p.raw}" → "${p.value}" ${p.valid?'✓':'✗'}`)
+    .join('\n');
+
+  const raw=(best?.lines||[])
+    .map((x,i)=>`${i}: ${x}`)
+    .join(' | ');
+
   setSummary(
     candidateInfo,
     'Kandidat',
-    `${cnd.valid?cnd.signature||'gültig':'UNGÜLTIG'}${cnd.knownPrefix?' · Prefix bekannt':''}`+
-    `\nOCR ${Math.round(elapsed)} ms · Ø ${fmt(cnd.avgConfidence,0)}% · min ${fmt(cnd.minConfidence,0)}%`+
-    `${invalidLines?'\nFehler: '+invalidLines:''}`+
-    cons+
-    `\n${lineText}`
+    `${cnd.valid?cnd.signature:'UNGÜLTIG'}${cnd.knownPrefix?' · Prefix bekannt':''}`+
+    `\nOCR gesamt ${Math.round(elapsed)} ms`+
+    `\nBest: ${best?.name||'—'} / ${best?.psmName||'—'} · conf ${fmt(best?.confidence,0)}%`+
+    `\nOCR-Zeilen: ${raw||'—'}`+
+    `\nAuswahl: ${(best?.candidate?.indexes||[]).join(',')||'—'}`+
+    `${parsed?'\n'+parsed:''}`+
+    cons
   );
 }
 
 function logRecognition(cnd,elapsed){
-  const parts=cnd.readings.map((r,i)=>{
-    const raw=(r.raw||'').replace(/\s+/g,' ');
-    return `L${i+1}:${r.valid?'OK':'FAIL'} "${raw}"→"${r.value}" ${fmt(r.confidence,0)}%`;
-  });
+  const best=cnd.bestAttempt;
+  const raw=(best?.lines||[]).join(' | ');
+
   if(cnd.valid){
-    logDev('ocr',`OCR ${Math.round(elapsed)} ms: ${cnd.signature} | ${parts.join(' | ')}`);
+    logDev(
+      'ok',
+      `OCR ${Math.round(elapsed)} ms: ${cnd.signature} | `+
+      `${best?.name}/${best?.psmName} | raw: ${raw}`
+    );
   }else{
-    logDev('bad',`OCR ${Math.round(elapsed)} ms: ungültig | ${parts.join(' | ')}`);
+    logDev(
+      'bad',
+      `OCR ${Math.round(elapsed)} ms: keine gültige 4-Zeilen-Signatur | `+
+      `${best?.name}/${best?.psmName} | raw: ${raw||'—'}`
+    );
   }
 }
 
@@ -886,12 +1790,34 @@ async function loop(){
     const ocrMs=performance.now()-ocrStart;
 
     renderCandidate(cnd,null,ocrMs);
+    renderImageDiagnostics(cnd);
+    saveDiagnosisCycle(cnd,shot,ocrMs);
+    detailedDiagnosticLog(cnd);
     logRecognition(cnd,ocrMs);
 
     dbg({
       cycle:cycleNo,
       burst:shot.all,
-      candidate:cnd,
+      candidate:{
+        valid:cnd.valid,
+        signature:cnd.signature,
+        prefix:cnd.prefix,
+        knownPrefix:cnd.knownPrefix,
+        bestAttempt:cnd.bestAttempt?.name,
+        attempts:(cnd.attempts||[]).map(a=>({
+          name:a.name,
+          psmName:a.psmName,
+          raw:a.raw,
+          confidence:a.confidence,
+          lines:a.lines,
+          candidate:{
+            valid:a.candidate?.valid,
+            indexes:a.candidate?.indexes,
+            score:a.candidate?.score,
+            parsed:a.candidate?.parsed
+          }
+        }))
+      },
       recent:history.slice(-12)
     });
 
@@ -940,11 +1866,17 @@ async function loop(){
   }
 }
 function openLibrary(){const s=sig.value.trim();if(!s)return;location.href=LIBRARY_URL.replace('SIGNATUR',encodeURIComponent(s))}
+copyDiagnosis.addEventListener('click',copyDiagnosisText);
+diagnosisText.addEventListener('click',()=>diagnosisText.select());
+
 clearLog.addEventListener('click',()=>{
   devLog.innerHTML='';
-  logDev('info','Konsole geleert.');
+  diagnosisCycles=[];
+  updateDiagnosisText();
+  logDev('info','Konsole und Diagnosehistorie geleert.');
 });
 logDev('info','Entwicklungsmodus bereit. Desktop-Webcam wird gespiegelt; Smartphone-Kamera bleibt normal.');
+updateDiagnosisText();
 startBtn.addEventListener('click',startCamera);stopBtn.addEventListener('click',()=>stopCamera(true));sig.addEventListener('input',()=>{manualUntil=Date.now()+12000;openBtn.disabled=!sig.value.trim()});sig.addEventListener('blur',()=>manualUntil=Date.now()+3000);openBtn.addEventListener('click',openLibrary);addEventListener('pagehide',()=>stopCamera(false));
 </script>
 </body>
