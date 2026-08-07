@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>Signatur-Scanner</title>
+<style>
+:root{--bg:#eef1f4;--surface:#fff;--text:#111827;--border:#d5dbe2;--primary:#184e77;--success:#0f766e;--danger:#b42318}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100dvh}button,input{font:inherit}
+.app{height:100dvh;display:flex;flex-direction:column;overflow:hidden}header{height:38px;flex:0 0 38px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;background:#111827;color:#fff;font-size:13px;font-weight:700}.dot{width:8px;height:8px;border-radius:50%;background:#64748b}.dot.ready{background:#22c55e}.dot.error{background:#ef4444}
+main{width:min(760px,100%);margin:0 auto;padding:4px;flex:1;min-height:0;display:flex}.scanner{width:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:8px}.camera{position:relative;flex:1;min-height:0;overflow:hidden;background:#08111f}video{width:100%;height:100%;display:block;object-fit:cover;background:#08111f}
+.frame{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:min(78%,620px);aspect-ratio:.48;border:2px solid rgba(255,255,255,.96);border-radius:7px;box-shadow:0 0 0 9999px rgba(2,6,23,.18);pointer-events:none;transition:.15s}.frame.detecting{border-color:#67e8f9}.frame.ok{border-color:#34d399;box-shadow:0 0 0 9999px rgba(2,6,23,.18),0 0 0 3px rgba(52,211,153,.18)}.frame:before,.frame:after{content:"";position:absolute;left:12%;right:12%;height:1px;background:rgba(255,255,255,.16)}.frame:before{top:34%}.frame:after{top:66%}
+.status{position:absolute;left:7px;top:7px;max-width:calc(100% - 52px);padding:5px 7px;border-radius:6px;background:rgba(15,23,42,.76);color:#fff;font-size:11px;font-weight:650;backdrop-filter:blur(5px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.start{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:0;border-radius:8px;padding:11px 15px;background:#fff;color:#111827;font-weight:750;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.22)}.stop{position:absolute;right:7px;top:7px;width:32px;height:29px;padding:0;border:1px solid rgba(255,255,255,.24);border-radius:6px;background:rgba(15,23,42,.72);color:#fff;cursor:pointer}.hidden{display:none!important}
+.result{padding:5px;display:grid;grid-template-columns:1fr auto;gap:5px;border-top:1px solid var(--border)}.signature{width:100%;min-width:0;height:40px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text);outline:none;font-size:17px;font-weight:760;letter-spacing:.015em}.signature:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(24,78,119,.1)}.open{height:40px;min-width:88px;padding:0 11px;border:0;border-radius:7px;background:var(--success);color:#fff;font-weight:750;cursor:pointer}.open:disabled{opacity:.4;cursor:not-allowed}.error{display:none;padding:0 6px 5px;color:var(--danger);font-size:11px}.error.show{display:block}.debug{display:none;position:fixed;z-index:30;left:5px;right:5px;bottom:52px;max-height:43dvh;overflow:auto;padding:7px;border-radius:7px;background:rgba(0,0,0,.9);color:#d1fae5;font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}.debug.show{display:block}
+@media(max-width:520px){header{height:34px;flex-basis:34px}.frame{height:80%}}@media(orientation:landscape) and (max-height:600px){header{display:none}.frame{height:90%}.signature,.open{height:36px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><span>Signatur-Scanner</span><span id="dot" class="dot"></span></header>
+<main><section class="scanner">
+<div class="camera">
+<video id="video" autoplay playsinline muted></video>
+<div id="frame" class="frame"></div>
+<div id="status" class="status">Kamera starten</div>
+<button id="start" class="start">Kamera starten</button>
+<button id="stop" class="stop hidden" aria-label="Kamera stoppen">■</button>
+</div>
+<div class="result"><input id="sig" class="signature" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Signatur"><button id="open" class="open" disabled>Öffnen</button></div>
+<div id="error" class="error"></div>
+</section></main>
+</div>
+<pre id="debug" class="debug"></pre>
+<script>
+'use strict';
+const LIBRARY_URL='https://bibliothek.sthbasel.ch/suche.php?ereignis=suche2&feldname=Standort&suchwort=SIGNATUR';
+const OCR_SCRIPT='https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
+const KNOWN_PREFIXES=new Set(["1.1","1.2","1.3","1.4","2.00","2.1","2.01","2.001","2.2","2.02","2.002","2.3","2.03","2.003","2.4","2.04","2.004","2.5","2.05","2.6","2.06","2.7","2.07","2.8","2.08","2.11","2.011","2.12","2.012","2.21","2.021","2.022","2.023","2.031","2.032","2.033","2.040","2.041","2.042","2.050","2.51","2.051","2.52","2.052","2.053","2.61","2.061","2.62","2.062","2.063","2.081","2.082","2.111","2.112","2.113","2.121","2.122","2.301","2.302","2.303","2.304","2.305","2.306","2.307","2.308","2.309","2.310","2.311","2.312","2.313","2.314","2.315","2.316","2.317","2.318","2.319","2.320","2.321","2.0401","2.0402","2.0501","2.511","2.0511","2.512","2.0512","2.521","2.0521","2.522","2.0522","2.0531","2.0532","2.701","2.702","2.703","2.704","2.705","2.706","2.707","2.708","2.709","2.710","2.711","2.712","2.713","2.714","2.715","2.716","2.717","2.718","2.719","2.720","2.721","2.1111","2.1112","2.5111","2.5112","2.5113","3.0","3.1","3.01","3.2","3.02","3.3","3.4","3.5","3.6","3.7","3.8","3.9","3.11","3.12","3.81","3.82","3.83","3.91","3.92","3.93","3.94","4.1","4.2","4.3","4.4","4.5","4.6","4.11","4.12","4.13","4.14","4.15","4.21","4.22","4.23","4.24","4.25","4.31","4.32","4.51","4.52","4.231","4.232","4.233","4.251","4.252","5.0","5.1","5.2","5.3","5.4","5.5","5.6","5.7","5.8","5.11","5.12","5.13","5.21","5.22","5.31","5.32","5.33","5.34","5.35","5.41","5.42","5.43","5.44","5.61","5.62","5.63","5.64","5.65","5.66","5.67","5.68","5.71","5.72","5.331","5.332","5.333","5.334","6.1","6.2","6.3","6.21","6.22","6.23","6.24","6.25","6.26","6.27","7.1","7.2","7.3","7.4","7.5","7.6","7.7","7.21","7.41","7.42","7.43","7.44","7.45","7.51","7.52","7.53","7.61","7.62","7.71","7.72","7.521","7.522","7.531","7.532","7.533","7.534","7.535","7.536","7.537","7.538","8.0","8.1","8.2","8.3","8.4","8.5","8.6","8.21","8.22","8.23","8.24","8.25","8.51","8.61","8.62","8.63","8.241","8.242","9.1","9.2","9.3","9.4","9.5","9.6","9.7","9.8","9.9","9.41","9.42","9.71","9.72","9.73","9.74","9.75","9.76","10.1","10.2","10.3","10.4","10.5","10.6","10.7","10.8","10.11","10.12","10.13","10.14","10.21","10.22","10.31","10.32","10.33","10.34","10.35","10.36","10.37","10.41","10.42","10.43","10.44","10.45","10.46","10.51","10.52","10.53","10.61","10.62","10.63","10.64","10.65","10.66","10.71","10.72","10.321","10.322","10.323","10.324","10.331","10.332","10.333","10.334","10.335","10.361","10.362","10.363","10.364","10.365","10.366"]);
+const DEBUG=new URLSearchParams(location.search).has('debug');
+const WINDOWS=[[.055,.300],[.275,.505],[.455,.710],[.655,.945]];
+const RULES=[
+ {wl:'0123456789',norm:s=>s.replace(/\D/g,''),valid:s=>/^(10|[1-9])$/.test(s)},
+ {wl:'0123456789',norm:s=>s.replace(/\D/g,''),valid:s=>/^\d+$/.test(s)},
+ {wl:'ABCDEFGHIJKLMNOPQRSTUVWXYZ',norm:s=>s.toUpperCase().replace(/[^A-Z]/g,''),valid:s=>/^[A-Z]{2,8}$/.test(s)},
+ {wl:'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+./-',norm:s=>s.replace(/\s+/g,'').replace(/[^0-9A-Za-z+./-]/g,''),valid:s=>/^[0-9A-Za-z+./-]{1,12}$/.test(s)}
+];
+const video=document.getElementById('video'),frame=document.getElementById('frame'),statusEl=document.getElementById('status'),startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),sig=document.getElementById('sig'),openBtn=document.getElementById('open'),errorEl=document.getElementById('error'),dot=document.getElementById('dot'),debugEl=document.getElementById('debug');
+if(DEBUG)debugEl.classList.add('show');
+let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',lastAcceptedAt=0;
+function setStatus(t,m=''){statusEl.textContent=t;frame.classList.toggle('detecting',m==='detecting');frame.classList.toggle('ok',m==='ok')}
+function setError(t=''){errorEl.textContent=t;errorEl.classList.toggle('show',!!t)}
+function dbg(x){if(DEBUG)debugEl.textContent=typeof x==='string'?x:JSON.stringify(x,null,2)}
+function mobile(){return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||(matchMedia&&matchMedia('(pointer: coarse)').matches)}
+function reset(){invalid=0;history=[];lastAcceptedAt=0}
+function schedule(ms=240){clearTimeout(timer);if(stream)timer=setTimeout(loop,ms)}
+async function startCamera(){setError();if(!navigator.mediaDevices?.getUserMedia){setError('Kamera nicht unterstützt.');return}stopCamera(false);try{const c=mobile()?{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}:{width:{ideal:1920},height:{ideal:1080}};stream=await navigator.mediaDevices.getUserMedia({video:c,audio:false});video.srcObject=stream;await video.play();try{const tr=stream.getVideoTracks()[0],caps=tr.getCapabilities?.()||{},adv={};if(Array.isArray(caps.focusMode)&&caps.focusMode.includes('continuous'))adv.focusMode='continuous';if(Array.isArray(caps.exposureMode)&&caps.exposureMode.includes('continuous'))adv.exposureMode='continuous';if(Object.keys(adv).length)await tr.applyConstraints({advanced:[adv]})}catch(_){}startBtn.classList.add('hidden');stopBtn.classList.remove('hidden');setStatus('OCR lädt…');reset();schedule(100);ensureOCR().catch(e=>{console.error(e);dot.className='dot error';setError('OCR konnte nicht geladen werden.');setStatus('OCR nicht verfügbar')})}catch(e){console.error(e);setError('Kamera konnte nicht geöffnet werden.');setStatus('Kamera nicht verfügbar')}}
+function stopCamera(ui=true){clearTimeout(timer);timer=null;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null;reset();if(ui){startBtn.classList.remove('hidden');stopBtn.classList.add('hidden');setStatus('Kamera starten')}}
+function videoRect(){const sw=video.videoWidth,sh=video.videoHeight,dw=video.clientWidth,dh=video.clientHeight;if(!sw||!sh||!dw||!dh)return null;const vr=video.getBoundingClientRect(),fr=frame.getBoundingClientRect(),scale=Math.max(dw/sw,dh/sh),rw=sw*scale,rh=sh*scale,ox=(rw-dw)/2,oy=(rh-dh)/2;let sx=(fr.left-vr.left+ox)/scale,sy=(fr.top-vr.top+oy)/scale,w=fr.width/scale,h=fr.height/scale;sx=Math.max(0,Math.min(sw-1,sx));sy=Math.max(0,Math.min(sh-1,sy));w=Math.max(1,Math.min(sw-sx,w));h=Math.max(1,Math.min(sh-sy,h));return{sx,sy,w,h}}
+function capture(){const r=videoRect();if(!r)return null;const c=document.createElement('canvas');c.width=360;c.height=Math.round(360*r.h/r.w);const x=c.getContext('2d',{willReadFrequently:true});x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,c.width,c.height);return c}
+function wait(ms){return new Promise(r=>setTimeout(r,ms))}
+async function captureBurst(count=4,gap=115){
+  const shots=[];
+  for(let i=0;i<count;i++){
+    if(!stream)return null;
+    const c=capture();
+    if(c){
+      const m=metrics(c);
+      /* Keine Bewegungsprüfung: leichte Handbewegung ist ausdrücklich erlaubt. */
+      if(m.contrast>=22&&m.sharp>=2.25){
+        /* Schärfe zählt stärker als Kontrast. */
+        const score=m.sharp*4+m.contrast*.18;
+        shots.push({c,m,score});
+      }
+    }
+    if(i<count-1)await wait(gap);
+  }
+  if(!shots.length)return null;
+  shots.sort((a,b)=>b.score-a.score);
+  return shots[0];
+}
+function percentile(hist,n,q){const target=n*q;let s=0;for(let i=0;i<256;i++){s+=hist[i];if(s>=target)return i}return 255}
+function metrics(c){const x=c.getContext('2d',{willReadFrequently:true}),im=x.getImageData(0,0,c.width,c.height),w=c.width,h=c.height,step=4,hist=new Uint32Array(256),fp=[];let gs=0,gc=0;for(let gy=0;gy<24;gy++)for(let gx=0;gx<12;gx++){const xx=Math.min(w-1,Math.floor((gx+.5)*w/12)),yy=Math.min(h-1,Math.floor((gy+.5)*h/24)),i=(yy*w+xx)*4;fp.push(Math.round(im.data[i]*.299+im.data[i+1]*.587+im.data[i+2]*.114))}for(let y=step;y<h-step;y+=step)for(let xx=step;xx<w-step;xx+=step){const i=(y*w+xx)*4,r=(y*w+xx+step)*4,b=((y+step)*w+xx)*4,g=Math.round(im.data[i]*.299+im.data[i+1]*.587+im.data[i+2]*.114),gr=Math.round(im.data[r]*.299+im.data[r+1]*.587+im.data[r+2]*.114),gb=Math.round(im.data[b]*.299+im.data[b+1]*.587+im.data[b+2]*.114);hist[g]++;gs+=Math.abs(g-gr)+Math.abs(g-gb);gc+=2}const n=hist.reduce((a,b)=>a+b,0);return{contrast:percentile(hist,n,.9)-percentile(hist,n,.1),sharp:gc?gs/gc:0,fp}}
+function fpDist(a,b){if(!a||!b||a.length!==b.length)return Infinity;let s=0;for(let i=0;i<a.length;i++)s+=Math.abs(a[i]-b[i]);return s/a.length}
+function grayData(c){const im=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height),g=new Uint8Array(c.width*c.height);for(let i=0,p=0;i<im.data.length;i+=4,p++)g[p]=Math.round(im.data[i]*.299+im.data[i+1]*.587+im.data[i+2]*.114);return g}
+function otsu(g){const h=new Uint32Array(256);for(const v of g)h[v]++;let sum=0;for(let i=0;i<256;i++)sum+=i*h[i];let sb=0,wb=0,best=-1,tbest=128;for(let t=0;t<256;t++){wb+=h[t];if(!wb)continue;const wf=g.length-wb;if(!wf)break;sb+=t*h[t];const mb=sb/wb,mf=(sum-sb)/wf,v=wb*wf*(mb-mf)*(mb-mf);if(v>best){best=v;tbest=t}}return tbest}
+function lineRects(c){
+  const w=c.width,h=c.height,g=grayData(c),x0=Math.round(w*.08),x1=Math.round(w*.92),out=[];
+  /*
+   * Zeilenlokalisierung über lokalen Zeilenkontrast statt über absolute Helligkeit.
+   * Dadurch stören dunkle Buchrücken neben einem weißen/orangen Etikett deutlich
+   * weniger: gesucht wird eine Reihe mit dunklen Zeichen AUF hellerem Hintergrund.
+   */
+  for(const [a,b] of WINDOWS){
+    const y0=Math.max(0,Math.floor(h*a)),y1=Math.min(h,Math.ceil(h*b)),scores=new Float32Array(y1-y0);
+    for(let y=y0;y<y1;y++){
+      const hist=new Uint16Array(256);let sum=0,n=0;
+      for(let x=x0;x<x1;x+=2){const v=g[y*w+x];hist[v]++;sum+=v;n++}
+      const mean=n?sum/n:0;
+      let target=n*.09,acc=0,p09=0;
+      for(let v=0;v<256;v++){acc+=hist[v];if(acc>=target){p09=v;break}}
+      scores[y-y0]=Math.max(0,mean-p09);
+    }
+    const sm=new Float32Array(scores.length);
+    for(let i=0;i<scores.length;i++){let ss=0,n=0;for(let k=-2;k<=2;k++){const j=i+k;if(j>=0&&j<scores.length){ss+=scores[j];n++}}sm[i]=ss/n}
+    let pi=0,peak=-1;for(let i=0;i<sm.length;i++)if(sm[i]>peak){peak=sm[i];pi=i}
+    if(peak<13){out.push({x:Math.round(w*.04),y:y0,width:Math.round(w*.92),height:y1-y0});continue}
+    const cut=Math.max(8,peak*.34);let top=pi,bot=pi;
+    while(top>0&&sm[top-1]>=cut)top--;while(bot<sm.length-1&&sm[bot+1]>=cut)bot++;
+    const dh=Math.max(3,bot-top+1),margin=Math.max(Math.round(h*.018),Math.round(dh*.7));top=Math.max(0,top-margin);bot=Math.min(sm.length-1,bot+margin);
+    const minH=Math.round(h*.075);if(bot-top+1<minH){const cc=(top+bot)/2;top=Math.max(0,Math.round(cc-minH/2));bot=Math.min(sm.length-1,top+minH-1)}
+    out.push({x:Math.round(w*.04),y:y0+top,width:Math.round(w*.92),height:bot-top+1});
+  }
+  return out;
+}
+function crop(src,r){const c=document.createElement('canvas');c.width=Math.max(1,Math.round(r.width));c.height=Math.max(1,Math.round(r.height));c.getContext('2d').drawImage(src,r.x,r.y,r.width,r.height,0,0,c.width,c.height);return c}
+function prep(src,binary=true){const H=118,pad=18,scale=H/src.height,W=Math.max(100,Math.round(src.width*scale)),sc=document.createElement('canvas');sc.width=W;sc.height=H;const sx=sc.getContext('2d',{willReadFrequently:true});sx.fillStyle='#fff';sx.fillRect(0,0,W,H);sx.imageSmoothingEnabled=true;sx.imageSmoothingQuality='high';sx.drawImage(src,0,0,W,H);const im=sx.getImageData(0,0,W,H),g=new Uint8Array(W*H),hist=new Uint32Array(256);for(let i=0,p=0;i<im.data.length;i+=4,p++){const v=Math.round(im.data[i]*.299+im.data[i+1]*.587+im.data[i+2]*.114);g[p]=v;hist[v]++}const p05=percentile(hist,g.length,.05),p95=percentile(hist,g.length,.95),span=Math.max(28,p95-p05);for(let i=0;i<g.length;i++)g[i]=Math.max(0,Math.min(255,Math.round((g[i]-p05)*255/span)));const out=document.createElement('canvas');out.width=W+pad*2;out.height=H+pad*2;const ox=out.getContext('2d');ox.fillStyle='#fff';ox.fillRect(0,0,out.width,out.height);const oi=ox.createImageData(W,H);if(binary){const integ=new Uint32Array((W+1)*(H+1));for(let y=1;y<=H;y++){let rs=0;for(let x=1;x<=W;x++){rs+=g[(y-1)*W+x-1];integ[y*(W+1)+x]=integ[(y-1)*(W+1)+x]+rs}}const rad=Math.max(8,Math.round(H*.12)),off=17;for(let y=0;y<H;y++){const ya=Math.max(0,y-rad),yb=Math.min(H-1,y+rad);for(let x=0;x<W;x++){const xa=Math.max(0,x-rad),xb=Math.min(W-1,x+rad),A=integ[ya*(W+1)+xa],B=integ[ya*(W+1)+xb+1],C=integ[(yb+1)*(W+1)+xa],D=integ[(yb+1)*(W+1)+xb+1],area=(xb-xa+1)*(yb-ya+1),mean=(D-B-C+A)/area,v=g[y*W+x]<mean-off?0:255,p=(y*W+x)*4;oi.data[p]=oi.data[p+1]=oi.data[p+2]=v;oi.data[p+3]=255}}}else{for(let i=0;i<g.length;i++){const p=i*4,v=g[i];oi.data[p]=oi.data[p+1]=oi.data[p+2]=v;oi.data[p+3]=255}}ox.putImageData(oi,pad,pad);return out}
+function loadScript(){if(window.Tesseract)return Promise.resolve();return new Promise((res,rej)=>{const old=document.querySelector('script[data-tess]');if(old){old.addEventListener('load',res,{once:true});old.addEventListener('error',rej,{once:true});return}const s=document.createElement('script');s.src=OCR_SCRIPT;s.async=true;s.dataset.tess='1';s.onload=res;s.onerror=()=>rej(new Error('Tesseract load failed'));document.head.appendChild(s)})}
+async function ensureOCR(){if(worker)return worker;if(workerPromise)return workerPromise;dot.className='dot';setStatus('OCR lädt…');workerPromise=(async()=>{await loadScript();const w=await Tesseract.createWorker('eng',1,{}, {load_system_dawg:'0',load_freq_dawg:'0',load_number_dawg:'0',load_punc_dawg:'0'});await w.setParameters({tessedit_pageseg_mode:Tesseract.PSM?.SINGLE_WORD??'8',preserve_interword_spaces:'0',user_defined_dpi:'300'});worker=w;dot.className='dot ready';if(stream)setStatus('Etikett in den Rahmen');return w})();try{return await workerPromise}catch(e){workerPromise=null;dot.className='dot error';throw e}}
+async function ocrCanvas(c,rule){const w=await ensureOCR();if(currentWL!==rule.wl){await w.setParameters({tessedit_char_whitelist:rule.wl,tessedit_pageseg_mode:Tesseract.PSM?.SINGLE_WORD??'8'});currentWL=rule.wl}const r=await w.recognize(c),raw=(r.data?.text||'').trim(),value=rule.norm(raw),confidence=Number(r.data?.confidence||0);return{raw,value,confidence,valid:rule.valid(value)}}
+function better(a,b,rule){if(!a)return b;if(!b)return a;const score=r=>(r.valid?60:0)+Math.min(40,Math.max(0,r.confidence)*.4);const sa=score(a),sb=score(b);if(Math.abs(sa-sb)<2&&rule.valid(a.value)&&rule.valid(b.value))return a.value.length<=b.value.length?a:b;return sb>sa?b:a}
+async function readLine(src,i,force=false){const rule=RULES[i];let best=await ocrCanvas(prep(src,true),rule);if(force||!best.valid||best.confidence<66)best=better(best,await ocrCanvas(prep(src,false),rule),rule);return best}
+function build(v){return `${v[0]}.${v[1]}${v[2]}-${v[3]}`}
+async function recognize(c){const rs=lineRects(c),src=rs.map(r=>crop(c,r)),reads=[];for(let i=0;i<4;i++)reads.push(await readLine(src[i],i,false));let vals=reads.map(r=>r.value),prefix=`${vals[0]}.${vals[1]}`;if(!KNOWN_PREFIXES.has(prefix)||reads[0].confidence<72||reads[1].confidence<72){const a0=await readLine(src[0],0,true),a1=await readLine(src[1],1,true),combos=[[reads[0],reads[1]],[a0,reads[1]],[reads[0],a1],[a0,a1]];let bp=combos[0],bs=-Infinity;for(const p of combos){if(!p[0].valid||!p[1].valid)continue;const pre=`${p[0].value}.${p[1].value}`,s=p[0].confidence+p[1].confidence+(KNOWN_PREFIXES.has(pre)?18:0);if(s>bs){bs=s;bp=p}}reads[0]=bp[0];reads[1]=bp[1];vals=reads.map(r=>r.value);prefix=`${vals[0]}.${vals[1]}`}const valid=reads.every((r,i)=>RULES[i].valid(r.value)),avg=reads.reduce((s,r)=>s+Math.max(0,r.confidence),0)/4;return{valid,signature:valid?build(reads.map(r=>r.value)):'',prefix,knownPrefix:valid&&KNOWN_PREFIXES.has(prefix),avgConfidence:avg,minConfidence:Math.min(...reads.map(r=>Math.max(0,r.confidence))),readings:reads,rects:rs}}
+function register(c){const now=Date.now();history=history.filter(x=>now-x.time<16000);history.push({signature:c.signature,time:now});const same=history.filter(x=>x.signature===c.signature);const n=same.length,required=c.knownPrefix?2:3;return{n,required,ok:n>=required}}
+function accept(s){if(Date.now()<manualUntil)return;accepted=s;sig.value=s;openBtn.disabled=false;setStatus('Erkannt','ok');setTimeout(()=>{if(stream&&!busy)setStatus('Weiter scannen…')},1300)}
+async function loop(){
+  if(!stream)return;
+  if(video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA||!video.videoWidth){schedule(140);return}
+  if(busy){schedule(140);return}
+
+  busy=true;
+  setStatus('Erfassen…','detecting');
+
+  try{
+    await ensureOCR();
+    if(!stream)return;
+
+    /*
+     * Statt "ruhig halten": 4 Bilder in knapp 0,4 s aufnehmen und automatisch
+     * das schärfste Bild auswählen. Kleine Bewegungen sind dadurch unkritisch.
+     */
+    const shot=await captureBurst(4,115);
+    if(!shot){
+      setStatus('Etikett in den Rahmen');
+      return;
+    }
+
+    setStatus('Analysieren…','detecting');
+    const cnd=await recognize(shot.c);
+
+    dbg({
+      burstBest:{
+        contrast:+shot.m.contrast.toFixed(1),
+        sharp:+shot.m.sharp.toFixed(1),
+        score:+shot.score.toFixed(1)
+      },
+      candidate:cnd,
+      recent:history.slice(-8)
+    });
+
+    if(!cnd.valid){
+      invalid++;
+      /* Ungültige Einzelbilder löschen einen vorherigen guten Kandidaten nicht sofort. */
+      if(invalid>=5)history=history.filter(x=>Date.now()-x.time<5000);
+      setStatus('Weiter scannen…');
+      return;
+    }
+
+    invalid=0;
+    const con=register(cnd);
+
+    if(con.ok){
+      if(cnd.signature!==accepted){
+        accept(cnd.signature);
+        lastAcceptedAt=Date.now();
+      }else{
+        setStatus('Erkannt','ok');
+      }
+    }else{
+      setStatus(`Prüfen ${con.n}/${con.required}`,'detecting');
+    }
+
+  }catch(e){
+    console.error(e);
+    setError('OCR-Fehler.');
+    setStatus('OCR-Fehler');
+  }finally{
+    busy=false;
+    /* Kurze Pause, dann automatisch der nächste Burst. */
+    schedule(180);
+  }
+}
+function openLibrary(){const s=sig.value.trim();if(!s)return;location.href=LIBRARY_URL.replace('SIGNATUR',encodeURIComponent(s))}
+startBtn.addEventListener('click',startCamera);stopBtn.addEventListener('click',()=>stopCamera(true));sig.addEventListener('input',()=>{manualUntil=Date.now()+12000;openBtn.disabled=!sig.value.trim()});sig.addEventListener('blur',()=>manualUntil=Date.now()+3000);openBtn.addEventListener('click',openLibrary);addEventListener('pagehide',()=>stopCamera(false));
+</script>
+</body>
+</html>
