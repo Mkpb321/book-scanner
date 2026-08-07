@@ -53,8 +53,12 @@ main{width:min(760px,100%);margin:0 auto;padding:4px;flex:1;min-height:0;display
   }
 }
 .status{position:absolute;left:7px;top:7px;max-width:calc(100% - 52px);padding:5px 7px;border-radius:6px;background:rgba(15,23,42,.76);color:#fff;font-size:11px;font-weight:650;backdrop-filter:blur(5px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.start{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:0;border-radius:8px;padding:11px 15px;background:#fff;color:#111827;font-weight:750;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.22)}.stop{position:absolute;right:7px;top:7px;width:32px;height:29px;padding:0;border:1px solid rgba(255,255,255,.24);border-radius:6px;background:rgba(15,23,42,.72);color:#fff;cursor:pointer}.hidden{display:none!important}
-.result{padding:5px;display:grid;grid-template-columns:1fr auto;gap:5px;border-top:1px solid var(--border)}.signature{width:100%;min-width:0;height:40px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text);outline:none;font-size:17px;font-weight:760;letter-spacing:.015em}.signature:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(24,78,119,.1)}.open{height:40px;min-width:88px;padding:0 11px;border:0;border-radius:7px;background:var(--success);color:#fff;font-weight:750;cursor:pointer}.open:disabled{opacity:.4;cursor:not-allowed}.error{display:none;padding:0 6px 5px;color:var(--danger);font-size:11px}.error.show{display:block}.debug{display:none;position:fixed;z-index:30;left:5px;right:5px;bottom:52px;max-height:43dvh;overflow:auto;padding:7px;border-radius:7px;background:rgba(0,0,0,.9);color:#d1fae5;font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}.debug.show{display:block}
-@media(max-width:520px){header{height:34px;flex-basis:34px}}@media(orientation:landscape) and (max-height:600px){header{display:none}.signature,.open{height:36px}}
+.result{padding:5px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;border-top:1px solid var(--border)}.signature{width:100%;min-width:0;height:40px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text);outline:none;font-size:17px;font-weight:760;letter-spacing:.015em}.signature:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(24,78,119,.1)}.open{height:40px;min-width:88px;padding:0 11px;border:0;border-radius:7px;background:var(--success);color:#fff;font-weight:750;cursor:pointer}.open:disabled{opacity:.4;cursor:not-allowed}.error{display:none;padding:0 6px 5px;color:var(--danger);font-size:11px}.error.show{display:block}.debug{display:none;position:fixed;z-index:30;left:5px;right:5px;bottom:52px;max-height:43dvh;overflow:auto;padding:7px;border-radius:7px;background:rgba(0,0,0,.9);color:#d1fae5;font:10px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}.debug.show{display:block}
+@media(max-width:520px){
+  header{height:34px;flex-basis:34px}
+  .result{grid-template-columns:minmax(0,1fr) auto;gap:4px}
+  .open{min-width:72px;padding:0 8px}
+}@media(orientation:landscape) and (max-height:600px){header{display:none}.signature,.open{height:36px}}
 
 
 header{
@@ -76,6 +80,45 @@ header{
   background:#111827;color:#fff;
   box-shadow:0 10px 30px rgba(0,0,0,.28)
 }
+
+.settings-toggle{
+  width:100%;
+  min-height:54px;
+  padding:8px 9px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border-radius:7px;
+  background:#1e293b;
+  cursor:pointer;
+}
+.settings-toggle span{min-width:0}
+.settings-toggle strong{
+  display:block;
+  color:#fff;
+  font-size:12px;
+  line-height:1.3;
+}
+.settings-toggle small{
+  display:block;
+  margin-top:2px;
+  color:#94a3b8;
+  font-size:10px;
+  line-height:1.3;
+}
+.settings-toggle input{
+  width:22px;
+  height:22px;
+  flex:0 0 22px;
+  accent-color:#0f766e;
+}
+.settings-divider{
+  height:1px;
+  margin:8px 0 4px;
+  background:#334155;
+}
+
 .settings-title{padding:4px 5px 8px;font-size:12px;font-weight:800;color:#cbd5e1}
 .settings-action{
   width:100%;min-height:42px;margin:0 0 6px;padding:8px 10px;
@@ -327,6 +370,16 @@ main{
   </div>
 </header>
 <div id="settingsMenu" class="settings-menu hidden">
+  <div class="settings-title">Scanner</div>
+  <label class="settings-toggle" for="autoOpenToggle">
+    <span>
+      <strong>Nach Scan automatisch öffnen</strong>
+      <small>Bibliotheksseite in neuem Tab öffnen</small>
+    </span>
+    <input id="autoOpenToggle" type="checkbox">
+  </label>
+
+  <div class="settings-divider"></div>
   <div class="settings-title">Scanrahmen</div>
   <button id="editFrameButton" class="settings-action" type="button">Rahmen bearbeiten</button>
   <button id="resetFrameButton" class="settings-action secondary" type="button">Rahmen zurücksetzen</button>
@@ -404,7 +457,7 @@ const RULES=[
 ];
 const video=document.getElementById('video'),frame=document.getElementById('frame'),statusEl=document.getElementById('status'),startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),sig=document.getElementById('sig'),openBtn=document.getElementById('open'),errorEl=document.getElementById('error'),dot=document.getElementById('dot'),debugEl=document.getElementById('debug');
 const cameraInfo=document.getElementById('cameraInfo'),frameInfo=document.getElementById('frameInfo'),burstInfo=document.getElementById('burstInfo'),ocrInfo=document.getElementById('ocrInfo'),candidateInfo=document.getElementById('candidateInfo'),devLog=document.getElementById('devLog'),clearLog=document.getElementById('clearLog'),copyDiagnosis=document.getElementById('copyDiagnosis'),diagnosisText=document.getElementById('diagnosisText'),diagFrameCanvas=document.getElementById('diagFrameCanvas'),diagLineImages=document.getElementById('diagLineImages'),diagMirrorLabel=document.getElementById('diagMirrorLabel');
-const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
+const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
 if(DEBUG)debugEl.classList.add('show');
 let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null;
 
@@ -493,6 +546,7 @@ function updateDiagnosisText(){
   }
 
   out.push('recognition: WHOLE_FRAME_ONLY (no geometric line crops)');
+  out.push(`auto_open: ${autoOpenEnabled?'ON':'OFF'}`);
   out.push('');
   out.push(`cycles_saved: ${diagnosisCycles.length}`);
 
@@ -593,6 +647,37 @@ function mobile(){
 }
 
 const FRAME_STORAGE_KEY='sthbasel-signature-scanframe-v1';
+
+const AUTO_OPEN_STORAGE_KEY='sthbasel-signature-auto-open-v1';
+let autoOpenEnabled=false;
+
+function loadAutoOpenSetting(){
+  try{
+    autoOpenEnabled=localStorage.getItem(AUTO_OPEN_STORAGE_KEY)==='1';
+  }catch(_){
+    autoOpenEnabled=false;
+  }
+  autoOpenToggle.checked=autoOpenEnabled;
+}
+
+function saveAutoOpenSetting(){
+  autoOpenEnabled=Boolean(autoOpenToggle.checked);
+  try{
+    localStorage.setItem(
+      AUTO_OPEN_STORAGE_KEY,
+      autoOpenEnabled?'1':'0'
+    );
+  }catch(_){}
+
+  logDev(
+    'info',
+    `Automatisch öffnen: ${autoOpenEnabled?'AN':'AUS'}`
+  );
+}
+
+loadAutoOpenSetting();
+autoOpenToggle.addEventListener('change',saveAutoOpenSetting);
+
 const DEFAULT_FRAME={x:.35,y:.18,w:.30,h:.64};
 let frameState={...DEFAULT_FRAME};
 let frameEditing=false;
@@ -1529,8 +1614,83 @@ function build(values){
 }
 
 function register(c){const now=Date.now();history=history.filter(x=>now-x.time<16000);history.push({signature:c.signature,time:now});const same=history.filter(x=>x.signature===c.signature);const n=same.length,required=c.knownPrefix?2:3;return{n,required,ok:n>=required}}
-function accept(s){if(Date.now()<manualUntil)return;accepted=s;sig.value=s;openBtn.disabled=false;setStatus('Erkannt','ok');setTimeout(()=>{if(stream&&!busy)setStatus('Weiter scannen…')},1300)}
+function accept(s){
+  if(Date.now()<manualUntil)return;
 
+  accepted=s;
+  sig.value=s;
+  openBtn.disabled=false;
+  openBtn.textContent='Öffnen';
+
+  setStatus('Erkannt','ok');
+  logDev(
+    'ok',
+    `Signatur bestätigt: ${s} | Auto-Open=${autoOpenEnabled?'AN':'AUS'}`
+  );
+
+  if(autoOpenEnabled){
+    openLibraryTab(s,true);
+  }
+}
+
+
+
+function libraryUrlFor(signature){
+  return LIBRARY_URL.replace(
+    'SIGNATUR',
+    encodeURIComponent(String(signature||'').trim())
+  );
+}
+
+function openLibraryTab(signature,automatic=false){
+  const value=String(signature||'').trim();
+  if(!value)return false;
+
+  const url=libraryUrlFor(value);
+  let tab=null;
+
+  try{
+    tab=window.open(url,'_blank');
+    if(tab){
+      try{tab.opener=null}catch(_){}
+    }
+  }catch(error){
+    logDev(
+      'bad',
+      `Neuer Tab konnte nicht geöffnet werden: ${error.message}`
+    );
+  }
+
+  if(tab){
+    setError('');
+    setStatus(
+      automatic?'Erkannt · geöffnet':'Geöffnet',
+      'ok'
+    );
+    logDev(
+      'ok',
+      `${automatic?'AUTO-OPEN':'MANUELL'}: ${value} in neuem Tab geöffnet.`
+    );
+    return true;
+  }
+
+  if(automatic){
+    setStatus('Erkannt · Öffnen drücken','ok');
+    setError('Automatischer neuer Tab wurde vom Browser blockiert.');
+    logDev(
+      'warn',
+      `AUTO-OPEN blockiert: ${value}. Popup-/Tab-Blocker des Browsers.`
+    );
+  }else{
+    setError('Neuer Tab wurde vom Browser blockiert.');
+    logDev(
+      'warn',
+      `Manuelles Öffnen für ${value} wurde blockiert.`
+    );
+  }
+
+  return false;
+}
 
 function copyCanvasScaled(src,dst){
   if(!src||!dst)return;
@@ -1865,7 +2025,12 @@ async function loop(){
     if(!frameEditing)schedule(220);
   }
 }
-function openLibrary(){const s=sig.value.trim();if(!s)return;location.href=LIBRARY_URL.replace('SIGNATUR',encodeURIComponent(s))}
+function openLibrary(){
+  const value=sig.value.trim();
+  if(!value)return;
+  openLibraryTab(value,false);
+}
+
 copyDiagnosis.addEventListener('click',copyDiagnosisText);
 diagnosisText.addEventListener('click',()=>diagnosisText.select());
 
@@ -1875,9 +2040,21 @@ clearLog.addEventListener('click',()=>{
   updateDiagnosisText();
   logDev('info','Konsole und Diagnosehistorie geleert.');
 });
-logDev('info','Entwicklungsmodus bereit. Desktop-Webcam wird gespiegelt; Smartphone-Kamera bleibt normal.');
+logDev('info',`Entwicklungsmodus bereit. Desktop-Webcam gespiegelt; Smartphone normal. Auto-Open=${autoOpenEnabled?'AN':'AUS'}.`);
 updateDiagnosisText();
-startBtn.addEventListener('click',startCamera);stopBtn.addEventListener('click',()=>stopCamera(true));sig.addEventListener('input',()=>{manualUntil=Date.now()+12000;openBtn.disabled=!sig.value.trim()});sig.addEventListener('blur',()=>manualUntil=Date.now()+3000);openBtn.addEventListener('click',openLibrary);addEventListener('pagehide',()=>stopCamera(false));
+startBtn.addEventListener('click',startCamera);
+stopBtn.addEventListener('click',()=>stopCamera(true));
+
+sig.addEventListener('input',()=>{
+  manualUntil=Date.now()+12000;
+  const hasValue=Boolean(sig.value.trim());
+  openBtn.disabled=!hasValue;
+  openBtn.textContent='Öffnen';
+});
+
+sig.addEventListener('blur',()=>manualUntil=Date.now()+3000);
+openBtn.addEventListener('click',openLibrary);
+addEventListener('pagehide',()=>stopCamera(false));
 </script>
 </body>
 </html>
