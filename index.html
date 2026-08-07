@@ -461,7 +461,11 @@ const menuButton=document.getElementById('menuButton'),settingsMenu=document.get
 if(DEBUG)debugEl.classList.add('show');
 let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null;
 
-const SCANNER_BUILD='2026-08-07-diagnose-v1';
+const SCANNER_BUILD='2026-08-07-fastpath-v1';
+const FAST_OCR_TARGET_HEIGHT=480;
+const FAST_ACCEPT_CONFIDENCE=65;
+const FRAME_MIN_CONTRAST=22;
+const FRAME_MIN_SHARPNESS=2.25;
 
 function browserSummary(){
   const ua=navigator.userAgent||'';
@@ -515,7 +519,7 @@ function updateDiagnosisText(){
   const out=[];
 
   out.push('=== SIGNATUR-SCANNER DIAGNOSE ===');
-  out.push(`build: 2026-08-07-whole-frame-ocr-v2`);
+  out.push(`build: ${SCANNER_BUILD}`);
   out.push(`browser: ${browserSummary()}`);
   out.push(`viewport: ${innerWidth}x${innerHeight} @ dpr ${window.devicePixelRatio||1}`);
 
@@ -545,7 +549,7 @@ function updateDiagnosisText(){
     );
   }
 
-  out.push('recognition: WHOLE_FRAME_ONLY (no geometric line crops)');
+  out.push('recognition: FAST_PATH single-frame + gray/block first; robust whole-frame fallbacks');
   out.push(`auto_open: ${autoOpenEnabled?'ON':'OFF'}`);
   out.push('');
   out.push(`cycles_saved: ${diagnosisCycles.length}`);
@@ -554,12 +558,12 @@ function updateDiagnosisText(){
     out.push('');
     out.push(`--- cycle ${c.cycle} ---`);
     out.push(
-      `burst_best: #${c.bestIndex} sharp=${fmt(c.sharp,2)} `+
+      `frame_selected: #${c.bestIndex} sharp=${fmt(c.sharp,2)} `+
       `contrast=${fmt(c.contrast,1)} score=${fmt(c.score,1)}`
     );
     out.push(
-      'burst_all: '+
-      c.burst.map(s=>
+      'frame_samples: '+
+      c.frames.map(s=>
         `#${s.index}[sh=${fmt(s.sharp,2)},co=${fmt(s.contrast,1)},sc=${fmt(s.score,1)}]`
       ).join(' ')
     );
@@ -1051,40 +1055,20 @@ function videoRect(){
   return{sx,sy,w,h};
 }
 function capture(){const r=videoRect();if(!r)return null;const c=document.createElement('canvas');c.width=360;c.height=Math.round(360*r.h/r.w);const x=c.getContext('2d',{willReadFrequently:true});x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(video,r.sx,r.sy,r.w,r.h,0,0,c.width,c.height);return c}
-function wait(ms){return new Promise(r=>setTimeout(r,ms))}
-async function captureBurst(count=5,gap=90){
-  const shots=[];
-  for(let i=0;i<count;i++){
-    if(!stream)return null;
-    const c=capture();
-    if(c){
-      const m=metrics(c);
-      const score=m.sharp*4+m.contrast*.18;
-      shots.push({
-        c,m,score,index:i+1,
-        quality:m.contrast>=22&&m.sharp>=2.25
-      });
-    }
-    if(i<count-1)await wait(gap);
-  }
-  if(!shots.length)return null;
+function captureFastFrame(){
+  const c=capture();
+  if(!c)return null;
 
-  /*
-   * Wichtig für unscharfe Webcams:
-   * Kein Frame wird wegen eines Schärfewerts verworfen.
-   * Wir nehmen immer das relativ beste Bild und zeigen die Qualität nur
-   * diagnostisch an.
-   */
-  const all=shots.map(s=>({
-    index:s.index,
-    contrast:s.m.contrast,
-    sharp:s.m.sharp,
-    score:s.score,
-    quality:s.quality
-  }));
-  shots.sort((a,b)=>b.score-a.score);
-  const best=shots[0];
-  return {...best,all};
+  const m=metrics(c);
+  const score=m.sharp*4+m.contrast*.18;
+  const quality=
+    m.contrast>=FRAME_MIN_CONTRAST&&
+    m.sharp>=FRAME_MIN_SHARPNESS;
+
+  return{
+    c,m,score,index:1,quality,
+    all:[{index:1,contrast:m.contrast,sharp:m.sharp,score,quality}]
+  };
 }
 function percentile(hist,n,q){const target=n*q;let s=0;for(let i=0;i<256;i++){s+=hist[i];if(s>=target)return i}return 255}
 function metrics(c){const x=c.getContext('2d',{willReadFrequently:true}),im=x.getImageData(0,0,c.width,c.height),w=c.width,h=c.height,step=4,hist=new Uint32Array(256),fp=[];let gs=0,gc=0;for(let gy=0;gy<24;gy++)for(let gx=0;gx<12;gx++){const xx=Math.min(w-1,Math.floor((gx+.5)*w/12)),yy=Math.min(h-1,Math.floor((gy+.5)*h/24)),i=(yy*w+xx)*4;fp.push(Math.round(im.data[i]*.299+im.data[i+1]*.587+im.data[i+2]*.114))}for(let y=step;y<h-step;y+=step)for(let xx=step;xx<w-step;xx+=step){const i=(y*w+xx)*4,r=(y*w+xx+step)*4,b=((y+step)*w+xx)*4,g=Math.round(im.data[i]*.299+im.data[i+1]*.587+im.data[i+2]*.114),gr=Math.round(im.data[r]*.299+im.data[r+1]*.587+im.data[r+2]*.114),gb=Math.round(im.data[b]*.299+im.data[b+1]*.587+im.data[b+2]*.114);hist[g]++;gs+=Math.abs(g-gr)+Math.abs(g-gb);gc+=2}const n=hist.reduce((a,b)=>a+b,0);return{contrast:percentile(hist,n,.9)-percentile(hist,n,.1),sharp:gc?gs/gc:0,fp}}
@@ -1123,11 +1107,11 @@ function lineRects(c){
 function crop(src,r){const c=document.createElement('canvas');c.width=Math.max(1,Math.round(r.width));c.height=Math.max(1,Math.round(r.height));c.getContext('2d').drawImage(src,r.x,r.y,r.width,r.height,0,0,c.width,c.height);return c}
 function prep(src,binary=true){const H=118,pad=18,scale=H/src.height,W=Math.max(100,Math.round(src.width*scale)),sc=document.createElement('canvas');sc.width=W;sc.height=H;const sx=sc.getContext('2d',{willReadFrequently:true});sx.fillStyle='#fff';sx.fillRect(0,0,W,H);sx.imageSmoothingEnabled=true;sx.imageSmoothingQuality='high';sx.drawImage(src,0,0,W,H);const im=sx.getImageData(0,0,W,H),g=new Uint8Array(W*H),hist=new Uint32Array(256);for(let i=0,p=0;i<im.data.length;i+=4,p++){const v=Math.round(im.data[i]*.299+im.data[i+1]*.587+im.data[i+2]*.114);g[p]=v;hist[v]++}const p05=percentile(hist,g.length,.05),p95=percentile(hist,g.length,.95),span=Math.max(28,p95-p05);for(let i=0;i<g.length;i++)g[i]=Math.max(0,Math.min(255,Math.round((g[i]-p05)*255/span)));const out=document.createElement('canvas');out.width=W+pad*2;out.height=H+pad*2;const ox=out.getContext('2d');ox.fillStyle='#fff';ox.fillRect(0,0,out.width,out.height);const oi=ox.createImageData(W,H);if(binary){const integ=new Uint32Array((W+1)*(H+1));for(let y=1;y<=H;y++){let rs=0;for(let x=1;x<=W;x++){rs+=g[(y-1)*W+x-1];integ[y*(W+1)+x]=integ[(y-1)*(W+1)+x]+rs}}const rad=Math.max(8,Math.round(H*.12)),off=17;for(let y=0;y<H;y++){const ya=Math.max(0,y-rad),yb=Math.min(H-1,y+rad);for(let x=0;x<W;x++){const xa=Math.max(0,x-rad),xb=Math.min(W-1,x+rad),A=integ[ya*(W+1)+xa],B=integ[ya*(W+1)+xb+1],C=integ[(yb+1)*(W+1)+xa],D=integ[(yb+1)*(W+1)+xb+1],area=(xb-xa+1)*(yb-ya+1),mean=(D-B-C+A)/area,v=g[y*W+x]<mean-off?0:255,p=(y*W+x)*4;oi.data[p]=oi.data[p+1]=oi.data[p+2]=v;oi.data[p+3]=255}}}else{for(let i=0;i<g.length;i++){const p=i*4,v=g[i];oi.data[p]=oi.data[p+1]=oi.data[p+2]=v;oi.data[p+3]=255}}ox.putImageData(oi,pad,pad);return out}
 function loadScript(){if(window.Tesseract)return Promise.resolve();return new Promise((res,rej)=>{const old=document.querySelector('script[data-tess]');if(old){old.addEventListener('load',res,{once:true});old.addEventListener('error',rej,{once:true});return}const s=document.createElement('script');s.src=OCR_SCRIPT;s.async=true;s.dataset.tess='1';s.onload=res;s.onerror=()=>rej(new Error('Tesseract load failed'));document.head.appendChild(s)})}
-async function ensureOCR(){
+async function ensureOCR(quiet=false){
   if(worker)return worker;
   if(workerPromise)return workerPromise;
   dot.className='dot';
-  setStatus('OCR lädt…');
+  if(!quiet)setStatus('OCR lädt…');
   ocrStartedAt=performance.now();
   logDev('info','Tesseract OCR wird geladen …');
   setSummary(ocrInfo,'OCR','Tesseract wird geladen …');
@@ -1186,10 +1170,10 @@ async function ocrCanvas(c,rule){
 function prepWhole(src,binary=true){
   /*
    * Anders als die alte Zeilen-OCR wird das komplette Etikett gemeinsam
-   * verarbeitet. 900 px Höhe gibt Tesseract genügend Zeichenpixel, ohne die
-   * Browser auf dem iPhone unnötig zu belasten.
+   * verarbeitet. Für den Fast Path reichen 480 px Höhe in der Regel aus;
+   * das reduziert die Pixelmenge und damit die OCR-Latenz deutlich.
    */
-  const targetH=900;
+  const targetH=FAST_OCR_TARGET_HEIGHT;
   const pad=28;
   const scale=targetH/src.height;
   const targetW=Math.max(220,Math.round(src.width*scale));
@@ -1540,7 +1524,6 @@ function attemptScore(a){
 
 async function recognize(c){
   const gray=prepWhole(c,false);
-  const binary=prepWhole(c,true);
 
   const PSM_BLOCK=Tesseract.PSM?.SINGLE_BLOCK??'6';
   const PSM_COLUMN=Tesseract.PSM?.SINGLE_COLUMN??'4';
@@ -1549,33 +1532,38 @@ async function recognize(c){
   const attempts=[];
 
   /*
-   * Alle Versuche sehen immer das vollständige Scanfenster.
-   * Keine Zeile wird mehr geometrisch ausgeschnitten.
+   * Fast Path: zuerst genau ein OCR-Lauf auf dem kontrastgestreckten Graubild.
+   * Sobald daraus eine syntaktisch gültige Signatur entsteht, wird nicht noch
+   * vorsorglich ein zweiter Vollbild-OCR-Lauf ausgeführt.
    */
-  attempts.push(
-    await ocrWholeAttempt(gray,'gray/block',PSM_BLOCK,'SINGLE_BLOCK')
+  const primary=await ocrWholeAttempt(
+    gray,'gray/block',PSM_BLOCK,'SINGLE_BLOCK'
   );
-  attempts.push(
-    await ocrWholeAttempt(binary,'binary/block',PSM_BLOCK,'SINGLE_BLOCK')
-  );
+  attempts.push(primary);
 
-  let validAttempts=attempts.filter(a=>a.candidate.valid);
-
-  /*
-   * Nur falls die normalen Block-Läufe keine komplette Signatur liefern,
-   * werden weitere Ganzbild-Segmentierungen probiert.
-   */
-  if(!validAttempts.length){
-    attempts.push(
-      await ocrWholeAttempt(binary,'binary/column',PSM_COLUMN,'SINGLE_COLUMN')
+  if(!primary.candidate.valid){
+    /*
+     * Robuster Fallback: Binärbild und alternative Segmentierungen werden erst
+     * dann erzeugt bzw. gerechnet, wenn der schnelle Primärlauf nicht reicht.
+     */
+    const binary=prepWhole(c,true);
+    const binaryBlock=await ocrWholeAttempt(
+      binary,'binary/block',PSM_BLOCK,'SINGLE_BLOCK'
     );
-    validAttempts=attempts.filter(a=>a.candidate.valid);
-  }
+    attempts.push(binaryBlock);
 
-  if(!validAttempts.length){
-    attempts.push(
-      await ocrWholeAttempt(gray,'gray/sparse',PSM_SPARSE,'SPARSE_TEXT')
-    );
+    if(!binaryBlock.candidate.valid){
+      const binaryColumn=await ocrWholeAttempt(
+        binary,'binary/column',PSM_COLUMN,'SINGLE_COLUMN'
+      );
+      attempts.push(binaryColumn);
+
+      if(!binaryColumn.candidate.valid){
+        attempts.push(
+          await ocrWholeAttempt(gray,'gray/sparse',PSM_SPARSE,'SPARSE_TEXT')
+        );
+      }
+    }
   }
 
   attempts.sort((a,b)=>attemptScore(b)-attemptScore(a));
@@ -1613,7 +1601,31 @@ function build(values){
   return `${values[0]}.${values[1]}${values[2]}-${values[3]}`;
 }
 
-function register(c){const now=Date.now();history=history.filter(x=>now-x.time<16000);history.push({signature:c.signature,time:now});const same=history.filter(x=>x.signature===c.signature);const n=same.length,required=c.knownPrefix?2:3;return{n,required,ok:n>=required}}
+function canFastAccept(c,shot){
+  if(!c?.valid||!c.knownPrefix||!shot?.quality)return false;
+
+  const best=c.bestAttempt;
+  const candidate=best?.candidate;
+  if(!best||best.name!=='gray/block')return false;
+  if(Number(best.confidence||0)<FAST_ACCEPT_CONFIDENCE)return false;
+  if(!candidate?.valid||candidate.gaps!==0)return false;
+  if((candidate.indexes||[]).length!==4)return false;
+
+  const corrections=(c.readings||[]).reduce(
+    (sum,r)=>sum+Number(r.corrections||0),0
+  );
+  return corrections===0;
+}
+
+function register(c,fastAccept=false){
+  const now=Date.now();
+  history=history.filter(x=>now-x.time<16000);
+  history.push({signature:c.signature,time:now});
+  const same=history.filter(x=>x.signature===c.signature);
+  const n=same.length;
+  const required=fastAccept?1:(c.knownPrefix?2:3);
+  return{n,required,ok:n>=required,fast:fastAccept};
+}
 function accept(s){
   if(Date.now()<manualUntil)return;
 
@@ -1768,7 +1780,7 @@ function saveDiagnosisCycle(cnd,shot,ocrMs){
     sharp:shot.m.sharp,
     contrast:shot.m.contrast,
     score:shot.score,
-    burst:shot.all.map(s=>({
+    frames:shot.all.map(s=>({
       index:s.index,
       sharp:s.sharp,
       contrast:s.contrast,
@@ -1847,7 +1859,7 @@ function renderBurst(shot){
 function renderCandidate(cnd,consensus=null,elapsed=0){
   const best=cnd.bestAttempt;
   const cons=consensus
-    ? `\nKonsens: ${consensus.n}/${consensus.required}`
+    ? `\nKonsens: ${consensus.n}/${consensus.required}${consensus.fast?' · Fast Path':''}`
     : '';
 
   const parsed=(best?.candidate?.parsed||[])
@@ -1915,13 +1927,13 @@ async function loop(){
   const cycleStart=performance.now();
   updateFrameInfo();
   setStatus('Erfassen…','detecting');
-  logDev('info',`Zyklus ${cycleNo}: 5 Frames erfassen …`);
+  logDev('info',`Zyklus ${cycleNo}: Einzel-Frame erfassen …`);
 
   try{
     await ensureOCR();
     if(!stream)return;
 
-    const shot=await captureBurst(5,90);
+    const shot=captureFastFrame();
     if(frameEditing)return;
     if(!shot){
       setStatus('Kein Kamerabild');
@@ -1939,7 +1951,7 @@ async function loop(){
     }else{
       logDev(
         'info',
-        `Zyklus ${cycleNo}: bestes Frame #${shot.index}, sharp ${fmt(shot.m.sharp,2)}, contrast ${fmt(shot.m.contrast,1)}.`
+        `Zyklus ${cycleNo}: Frame #${shot.index}, sharp ${fmt(shot.m.sharp,2)}, contrast ${fmt(shot.m.contrast,1)}.`
       );
     }
 
@@ -1957,7 +1969,7 @@ async function loop(){
 
     dbg({
       cycle:cycleNo,
-      burst:shot.all,
+      frames:shot.all,
       candidate:{
         valid:cnd.valid,
         signature:cnd.signature,
@@ -1993,12 +2005,13 @@ async function loop(){
     }
 
     invalid=0;
-    const con=register(cnd);
+    const fastAccept=canFastAccept(cnd,shot);
+    const con=register(cnd,fastAccept);
     renderCandidate(cnd,con,ocrMs);
 
     logDev(
       con.ok?'ok':'info',
-      `Kandidat ${cnd.signature}: ${con.n}/${con.required} Bestätigungen. Historie: ${historySummary()}`
+      `Kandidat ${cnd.signature}: ${con.n}/${con.required} Bestätigungen${con.fast?' · Fast Path':''}. Historie: ${historySummary()}`
     );
 
     if(con.ok){
@@ -2022,7 +2035,7 @@ async function loop(){
     const total=performance.now()-cycleStart;
     logDev('info',`Zyklus ${cycleNo} beendet: ${Math.round(total)} ms.`);
     busy=false;
-    if(!frameEditing)schedule(220);
+    if(!frameEditing)schedule(90);
   }
 }
 function openLibrary(){
@@ -2054,6 +2067,18 @@ sig.addEventListener('input',()=>{
 
 sig.addEventListener('blur',()=>manualUntil=Date.now()+3000);
 openBtn.addEventListener('click',openLibrary);
+
+function prewarmOCR(){
+  ensureOCR(true).catch(e=>{
+    console.warn('OCR-Prewarm fehlgeschlagen:',e);
+  });
+}
+if('requestIdleCallback' in window){
+  requestIdleCallback(prewarmOCR,{timeout:1200});
+}else{
+  setTimeout(prewarmOCR,300);
+}
+
 addEventListener('pagehide',()=>stopCamera(false));
 </script>
 </body>
