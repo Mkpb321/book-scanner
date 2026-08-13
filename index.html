@@ -478,8 +478,8 @@ const WINDOWS=[[.055,.300],[.275,.505],[.455,.710],[.655,.945]];
 const RULES=[
  {wl:'0123456789',norm:s=>s.replace(/\D/g,''),valid:s=>/^(10|[1-9])$/.test(s)},
  {wl:'0123456789',norm:s=>s.replace(/\D/g,''),valid:s=>/^\d+$/.test(s)},
- {wl:'ABCDEFGHIJKLMNOPQRSTUVWXYZ',norm:s=>s.toUpperCase().replace(/[^A-Z]/g,''),valid:s=>/^[A-Z]{3,4}$/.test(s)},
- {wl:'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+./-',norm:s=>s.replace(/\s+/g,'').replace(/[^0-9A-Za-z+./-]/g,''),valid:s=>/^[0-9A-Za-z+./-]{1,12}$/.test(s)}
+ {wl:'ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ',norm:s=>s.normalize('NFC').toUpperCase().replace(/[^A-ZÄÖÜ]/g,''),valid:s=>/^[A-ZÄÖÜ]{3,4}$/.test(s)},
+ {wl:'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜabcdefghijklmnopqrstuvwxyzäöü+./-',norm:s=>s.normalize('NFC').replace(/\s+/g,'').replace(/[^0-9A-Za-zÄÖÜäöü+./-]/g,''),valid:s=>/^[0-9A-Za-zÄÖÜäöü+./-]{1,12}$/.test(s)}
 ];
 const video=document.getElementById('video'),frame=document.getElementById('frame'),statusEl=document.getElementById('status'),startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),sig=document.getElementById('sig'),openBtn=document.getElementById('open'),errorEl=document.getElementById('error'),dot=document.getElementById('dot'),debugEl=document.getElementById('debug');
 const cameraInfo=document.getElementById('cameraInfo'),frameInfo=document.getElementById('frameInfo'),burstInfo=document.getElementById('burstInfo'),ocrInfo=document.getElementById('ocrInfo'),candidateInfo=document.getElementById('candidateInfo'),devLog=document.getElementById('devLog'),clearLog=document.getElementById('clearLog'),copyDiagnosis=document.getElementById('copyDiagnosis'),diagnosisText=document.getElementById('diagnosisText'),diagFrameCanvas=document.getElementById('diagFrameCanvas'),diagLineImages=document.getElementById('diagLineImages'),diagMirrorLabel=document.getElementById('diagMirrorLabel');
@@ -487,7 +487,7 @@ const menuButton=document.getElementById('menuButton'),settingsMenu=document.get
 const mainEl=document.getElementById('main'),devConsole=document.getElementById('devConsole'),scanHistoryList=document.getElementById('scanHistoryList'),scanHistoryCount=document.getElementById('scanHistoryCount');
 let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null;
 
-const SCANNER_BUILD='2026-08-07-fastpath-v4';
+const SCANNER_BUILD='2026-08-13-umlaut-ocr-v5';
 const FAST_OCR_TARGET_HEIGHT=480;
 const FAST_ACCEPT_CONFIDENCE=65;
 const FRAME_MIN_CONTRAST=22;
@@ -1300,7 +1300,7 @@ async function ensureOCR(quiet=false){
   workerPromise=(async()=>{
     await loadScript();
     logDev('info','Tesseract.js geladen; Worker startet …');
-    const w=await Tesseract.createWorker('eng',1,{}, {
+    const w=await Tesseract.createWorker('deu',1,{}, {
       load_system_dawg:'0',
       load_freq_dawg:'0',
       load_number_dawg:'0',
@@ -1471,6 +1471,7 @@ function prepWhole(src,binary=true){
 
 function splitOCRLines(raw){
   return String(raw||'')
+    .normalize('NFC')
     .replace(/\r/g,'')
     .split('\n')
     .map(s=>s.trim())
@@ -1479,7 +1480,7 @@ function splitOCRLines(raw){
 }
 
 function normalizeTokenForPosition(raw,pos){
-  let s=String(raw||'').trim().replace(/\s+/g,'');
+  let s=String(raw||'').normalize('NFC').trim().replace(/\s+/g,'');
   let corrections=0;
 
   if(pos===0||pos===1){
@@ -1533,7 +1534,7 @@ function normalizeTokenForPosition(raw,pos){
 
     let out='';
     for(const ch of s.toUpperCase()){
-      if(/[A-Z]/.test(ch)){
+      if(/[A-ZÄÖÜ]/.test(ch)){
         out+=ch;
       }else if(map[ch]!==undefined){
         out+=map[ch];
@@ -1549,7 +1550,7 @@ function normalizeTokenForPosition(raw,pos){
     return{
       raw:String(raw||''),
       value:s,
-      valid:/^[A-Z]{3,4}$/.test(s),
+      valid:/^[A-ZÄÖÜ]{3,4}$/.test(s),
       corrections
     };
   }
@@ -1559,11 +1560,11 @@ function normalizeTokenForPosition(raw,pos){
    * aber Editionen wie "1ed4", Buchstaben und Sonderzeichen müssen möglich
    * bleiben. Leerzeichen werden entfernt, Groß-/Kleinschreibung bleibt erhalten.
    */
-  s=s.replace(/[^0-9A-Za-z+./-]/g,'');
+  s=s.replace(/[^0-9A-Za-zÄÖÜäöü+./-]/g,'');
   return{
     raw:String(raw||''),
     value:s,
-    valid:/^[0-9A-Za-z+./-]{1,12}$/.test(s),
+    valid:/^[0-9A-Za-zÄÖÜäöü+./-]{1,12}$/.test(s),
     corrections:0
   };
 }
@@ -1666,7 +1667,7 @@ function bestCandidateFromRaw(raw,ocrConfidence=0){
 
 async function ocrWholeAttempt(canvas,name,psm,psmName){
   const w=await ensureOCR();
-  const whitelist='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+./-';
+  const whitelist='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜabcdefghijklmnopqrstuvwxyzäöü+./-';
 
   if(currentWL!==whitelist||currentPSM!==psm){
     await w.setParameters({
