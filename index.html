@@ -117,44 +117,6 @@ header{
   flex:0 0 22px;
   accent-color:#0f766e;
 }
-.settings-choice{
-  width:100%;
-  min-height:58px;
-  margin-top:6px;
-  padding:8px 9px;
-  display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
-  align-items:center;
-  gap:10px;
-  border-radius:7px;
-  background:#1e293b;
-}
-.settings-choice label{min-width:0}
-.settings-choice strong{
-  display:block;
-  color:#fff;
-  font-size:12px;
-  line-height:1.3;
-}
-.settings-choice small{
-  display:block;
-  margin-top:2px;
-  color:#94a3b8;
-  font-size:10px;
-  line-height:1.3;
-}
-.settings-choice select{
-  max-width:122px;
-  min-height:36px;
-  padding:5px 28px 5px 8px;
-  border:1px solid #475569;
-  border-radius:6px;
-  outline:none;
-  background:#0f172a;
-  color:#fff;
-  font:700 11px/1.2 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-}
-.settings-choice select:focus{border-color:#38bdf8}
 .settings-divider{
   height:1px;
   margin:8px 0 4px;
@@ -426,16 +388,13 @@ main.console-hidden .scanner{width:100%}
     </span>
     <input id="autoOpenToggle" type="checkbox">
   </label>
-  <div class="settings-choice">
-    <label for="openTargetSelect">
-      <strong>Bibliotheksseite öffnen in</strong>
-      <small>Gilt für Öffnen-Button, Auto-Open und Scanverlauf</small>
-    </label>
-    <select id="openTargetSelect">
-      <option value="new">Neuer Tab</option>
-      <option value="current">Aktueller Tab</option>
-    </select>
-  </div>
+  <label class="settings-toggle" for="openInNewTabToggle">
+    <span>
+      <strong>In neuem Tab öffnen</strong>
+      <small>Deaktiviert: im aktuellen Tab öffnen</small>
+    </span>
+    <input id="openInNewTabToggle" type="checkbox">
+  </label>
   <label class="settings-toggle" for="diagnosticsToggle">
     <span>
       <strong>Diagnosekonsole anzeigen</strong>
@@ -531,11 +490,11 @@ const RULES=[
 ];
 const video=document.getElementById('video'),frame=document.getElementById('frame'),statusEl=document.getElementById('status'),startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),sig=document.getElementById('sig'),openBtn=document.getElementById('open'),errorEl=document.getElementById('error'),dot=document.getElementById('dot'),debugEl=document.getElementById('debug');
 const cameraInfo=document.getElementById('cameraInfo'),frameInfo=document.getElementById('frameInfo'),burstInfo=document.getElementById('burstInfo'),ocrInfo=document.getElementById('ocrInfo'),candidateInfo=document.getElementById('candidateInfo'),devLog=document.getElementById('devLog'),clearLog=document.getElementById('clearLog'),copyDiagnosis=document.getElementById('copyDiagnosis'),diagnosisText=document.getElementById('diagnosisText'),diagFrameCanvas=document.getElementById('diagFrameCanvas'),diagLineImages=document.getElementById('diagLineImages'),diagMirrorLabel=document.getElementById('diagMirrorLabel');
-const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),openTargetSelect=document.getElementById('openTargetSelect'),diagnosticsToggle=document.getElementById('diagnosticsToggle'),clearScanHistoryButton=document.getElementById('clearScanHistoryButton'),scanHistorySettingsValue=document.getElementById('scanHistorySettingsValue'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
+const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),openInNewTabToggle=document.getElementById('openInNewTabToggle'),diagnosticsToggle=document.getElementById('diagnosticsToggle'),clearScanHistoryButton=document.getElementById('clearScanHistoryButton'),scanHistorySettingsValue=document.getElementById('scanHistorySettingsValue'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
 const mainEl=document.getElementById('main'),devConsole=document.getElementById('devConsole'),scanHistoryList=document.getElementById('scanHistoryList'),scanHistoryCount=document.getElementById('scanHistoryCount');
 let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null;
 
-const SCANNER_BUILD='2026-08-13-open-target-v6';
+const SCANNER_BUILD='2026-08-13-new-tab-toggle-v7';
 const FAST_OCR_TARGET_HEIGHT=480;
 const FAST_ACCEPT_CONFIDENCE=65;
 const FRAME_MIN_CONTRAST=22;
@@ -773,11 +732,11 @@ function loadOpenTargetSetting(){
   }catch(_){
     openTarget='new';
   }
-  openTargetSelect.value=openTarget;
+  openInNewTabToggle.checked=openTarget==='new';
 }
 
 function saveOpenTargetSetting(){
-  openTarget=openTargetSelect.value==='current'?'current':'new';
+  openTarget=openInNewTabToggle.checked?'new':'current';
   try{
     localStorage.setItem(OPEN_TARGET_STORAGE_KEY,openTarget);
   }catch(_){}
@@ -942,7 +901,7 @@ loadDiagnosticsSetting();
 loadOpenTargetSetting();
 loadScanHistory();
 autoOpenToggle.addEventListener('change',saveAutoOpenSetting);
-openTargetSelect.addEventListener('change',saveOpenTargetSetting);
+openInNewTabToggle.addEventListener('change',saveOpenTargetSetting);
 diagnosticsToggle.addEventListener('change',saveDiagnosticsSetting);
 clearScanHistoryButton.addEventListener('click',clearScanHistory);
 
