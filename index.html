@@ -117,6 +117,44 @@ header{
   flex:0 0 22px;
   accent-color:#0f766e;
 }
+.settings-choice{
+  width:100%;
+  min-height:58px;
+  margin-top:6px;
+  padding:8px 9px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px;
+  border-radius:7px;
+  background:#1e293b;
+}
+.settings-choice label{min-width:0}
+.settings-choice strong{
+  display:block;
+  color:#fff;
+  font-size:12px;
+  line-height:1.3;
+}
+.settings-choice small{
+  display:block;
+  margin-top:2px;
+  color:#94a3b8;
+  font-size:10px;
+  line-height:1.3;
+}
+.settings-choice select{
+  max-width:122px;
+  min-height:36px;
+  padding:5px 28px 5px 8px;
+  border:1px solid #475569;
+  border-radius:6px;
+  outline:none;
+  background:#0f172a;
+  color:#fff;
+  font:700 11px/1.2 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.settings-choice select:focus{border-color:#38bdf8}
 .settings-divider{
   height:1px;
   margin:8px 0 4px;
@@ -384,10 +422,20 @@ main.console-hidden .scanner{width:100%}
   <label class="settings-toggle" for="autoOpenToggle">
     <span>
       <strong>Nach Scan automatisch öffnen</strong>
-      <small>Bibliotheksseite in neuem Tab öffnen</small>
+      <small>Bibliotheksseite nach erfolgreichem Scan öffnen</small>
     </span>
     <input id="autoOpenToggle" type="checkbox">
   </label>
+  <div class="settings-choice">
+    <label for="openTargetSelect">
+      <strong>Bibliotheksseite öffnen in</strong>
+      <small>Gilt für Öffnen-Button, Auto-Open und Scanverlauf</small>
+    </label>
+    <select id="openTargetSelect">
+      <option value="new">Neuer Tab</option>
+      <option value="current">Aktueller Tab</option>
+    </select>
+  </div>
   <label class="settings-toggle" for="diagnosticsToggle">
     <span>
       <strong>Diagnosekonsole anzeigen</strong>
@@ -483,11 +531,11 @@ const RULES=[
 ];
 const video=document.getElementById('video'),frame=document.getElementById('frame'),statusEl=document.getElementById('status'),startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),sig=document.getElementById('sig'),openBtn=document.getElementById('open'),errorEl=document.getElementById('error'),dot=document.getElementById('dot'),debugEl=document.getElementById('debug');
 const cameraInfo=document.getElementById('cameraInfo'),frameInfo=document.getElementById('frameInfo'),burstInfo=document.getElementById('burstInfo'),ocrInfo=document.getElementById('ocrInfo'),candidateInfo=document.getElementById('candidateInfo'),devLog=document.getElementById('devLog'),clearLog=document.getElementById('clearLog'),copyDiagnosis=document.getElementById('copyDiagnosis'),diagnosisText=document.getElementById('diagnosisText'),diagFrameCanvas=document.getElementById('diagFrameCanvas'),diagLineImages=document.getElementById('diagLineImages'),diagMirrorLabel=document.getElementById('diagMirrorLabel');
-const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),diagnosticsToggle=document.getElementById('diagnosticsToggle'),clearScanHistoryButton=document.getElementById('clearScanHistoryButton'),scanHistorySettingsValue=document.getElementById('scanHistorySettingsValue'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
+const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),openTargetSelect=document.getElementById('openTargetSelect'),diagnosticsToggle=document.getElementById('diagnosticsToggle'),clearScanHistoryButton=document.getElementById('clearScanHistoryButton'),scanHistorySettingsValue=document.getElementById('scanHistorySettingsValue'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
 const mainEl=document.getElementById('main'),devConsole=document.getElementById('devConsole'),scanHistoryList=document.getElementById('scanHistoryList'),scanHistoryCount=document.getElementById('scanHistoryCount');
 let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null;
 
-const SCANNER_BUILD='2026-08-13-umlaut-ocr-v5';
+const SCANNER_BUILD='2026-08-13-open-target-v6';
 const FAST_OCR_TARGET_HEIGHT=480;
 const FAST_ACCEPT_CONFIDENCE=65;
 const FRAME_MIN_CONTRAST=22;
@@ -578,6 +626,7 @@ function updateDiagnosisText(){
 
   out.push('recognition: FAST_PATH single-frame + gray/block first; robust whole-frame fallbacks');
   out.push(`auto_open: ${autoOpenEnabled?'ON':'OFF'}`);
+  out.push(`open_target: ${openTarget==='current'?'CURRENT_TAB':'NEW_TAB'}`);
   out.push(`diagnostics_visible: ${diagnosticsEnabled?'ON':'OFF'}`);
   out.push(`scan_history_saved: ${scanHistoryEntries.length}`);
   out.push('');
@@ -682,10 +731,12 @@ function mobile(){
 
 const FRAME_STORAGE_KEY='sthbasel-signature-scanframe-v1';
 const AUTO_OPEN_STORAGE_KEY='sthbasel-signature-auto-open-v1';
+const OPEN_TARGET_STORAGE_KEY='sthbasel-signature-open-target-v1';
 const DIAGNOSTICS_STORAGE_KEY='sthbasel-signature-diagnostics-v1';
 const SCAN_HISTORY_STORAGE_KEY='sthbasel-signature-history-v1';
 
 let autoOpenEnabled=false;
+let openTarget='new';
 let diagnosticsEnabled=false;
 let scanHistoryEntries=[];
 
@@ -710,6 +761,31 @@ function saveAutoOpenSetting(){
   logDev(
     'info',
     `Automatisch öffnen: ${autoOpenEnabled?'AN':'AUS'}`
+  );
+  updateDiagnosisText();
+}
+
+function loadOpenTargetSetting(){
+  try{
+    openTarget=localStorage.getItem(OPEN_TARGET_STORAGE_KEY)==='current'
+      ?'current'
+      :'new';
+  }catch(_){
+    openTarget='new';
+  }
+  openTargetSelect.value=openTarget;
+}
+
+function saveOpenTargetSetting(){
+  openTarget=openTargetSelect.value==='current'?'current':'new';
+  try{
+    localStorage.setItem(OPEN_TARGET_STORAGE_KEY,openTarget);
+  }catch(_){}
+
+  renderScanHistory();
+  logDev(
+    'info',
+    `Öffnungsziel: ${openTarget==='current'?'aktueller Tab':'neuer Tab'}`
   );
   updateDiagnosisText();
 }
@@ -775,9 +851,13 @@ function renderScanHistory(){
     const link=document.createElement('a');
     link.className='scan-history-link';
     link.href=libraryUrlFor(entry.signature);
-    link.target='_blank';
-    link.rel='noopener';
-    link.title=`${entry.signature} in der Bibliothek öffnen`;
+    if(openTarget==='new'){
+      link.target='_blank';
+      link.rel='noopener';
+    }else{
+      link.target='_self';
+    }
+    link.title=`${entry.signature} in der Bibliothek öffnen (${openTarget==='new'?'neuer Tab':'aktueller Tab'})`;
 
     const signature=document.createElement('span');
     signature.className='scan-history-signature';
@@ -859,8 +939,10 @@ function clearScanHistory(){
 
 loadAutoOpenSetting();
 loadDiagnosticsSetting();
+loadOpenTargetSetting();
 loadScanHistory();
 autoOpenToggle.addEventListener('change',saveAutoOpenSetting);
+openTargetSelect.addEventListener('change',saveOpenTargetSetting);
 diagnosticsToggle.addEventListener('change',saveDiagnosticsSetting);
 clearScanHistoryButton.addEventListener('click',clearScanHistory);
 
@@ -1821,11 +1903,11 @@ function accept(s){
   setStatus('Erkannt','ok');
   logDev(
     'ok',
-    `Signatur bestätigt: ${s} | Auto-Open=${autoOpenEnabled?'AN':'AUS'}`
+    `Signatur bestätigt: ${s} | Auto-Open=${autoOpenEnabled?'AN':'AUS'} | Ziel=${openTarget==='current'?'aktueller Tab':'neuer Tab'}`
   );
 
   if(autoOpenEnabled){
-    openLibraryTab(s,true);
+    openLibraryDestination(s,true);
   }
 }
 
@@ -1838,11 +1920,32 @@ function libraryUrlFor(signature){
   );
 }
 
-function openLibraryTab(signature,automatic=false){
+function openLibraryDestination(signature,automatic=false){
   const value=String(signature||'').trim();
   if(!value)return false;
 
   const url=libraryUrlFor(value);
+
+  if(openTarget==='current'){
+    try{
+      setError('');
+      setStatus(automatic?'Erkannt · wird geöffnet':'Wird geöffnet','ok');
+      logDev(
+        'ok',
+        `${automatic?'AUTO-OPEN':'MANUELL'}: ${value} im aktuellen Tab geöffnet.`
+      );
+      window.location.assign(url);
+      return true;
+    }catch(error){
+      setError('Bibliotheksseite konnte im aktuellen Tab nicht geöffnet werden.');
+      logDev(
+        'bad',
+        `Aktueller Tab konnte nicht geöffnet werden: ${error.message}`
+      );
+      return false;
+    }
+  }
+
   let tab=null;
 
   try{
@@ -2229,7 +2332,7 @@ async function loop(){
 function openLibrary(){
   const value=sig.value.trim();
   if(!value)return;
-  openLibraryTab(value,false);
+  openLibraryDestination(value,false);
 }
 
 copyDiagnosis.addEventListener('click',copyDiagnosisText);
@@ -2241,7 +2344,7 @@ clearLog.addEventListener('click',()=>{
   updateDiagnosisText();
   logDev('info','Konsole und Diagnosehistorie geleert.');
 });
-logDev('info',`Entwicklungsmodus bereit. Desktop-Webcam gespiegelt; Smartphone normal. Auto-Open=${autoOpenEnabled?'AN':'AUS'} · Diagnose=${diagnosticsEnabled?'AN':'AUS'} · Verlauf=${scanHistoryEntries.length}.`);
+logDev('info',`Entwicklungsmodus bereit. Desktop-Webcam gespiegelt; Smartphone normal. Auto-Open=${autoOpenEnabled?'AN':'AUS'} · Ziel=${openTarget==='current'?'aktueller Tab':'neuer Tab'} · Diagnose=${diagnosticsEnabled?'AN':'AUS'} · Verlauf=${scanHistoryEntries.length}.`);
 updateDiagnosisText();
 startBtn.addEventListener('click',startCamera);
 stopBtn.addEventListener('click',()=>stopCamera(true));
