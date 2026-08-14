@@ -58,7 +58,7 @@ main{width:min(760px,100%);margin:0 auto;padding:4px;flex:1;min-height:0;display
 @media(max-width:520px){
   header{height:34px;flex-basis:34px}
   .camera{height:clamp(200px,36dvh,300px)}
-  .result{grid-template-columns:minmax(0,1fr) auto;gap:4px}
+  .result{grid-template-columns:minmax(0,1fr) auto auto;gap:4px}
   .open{min-width:72px;padding:0 8px}
 }@media(orientation:landscape) and (max-height:600px){header{display:none}.camera{height:clamp(180px,58dvh,280px)}.signature,.open{height:36px}}
 
@@ -402,6 +402,13 @@ main.console-hidden .scanner{width:100%}
     </span>
     <input id="autoCameraToggle" type="checkbox">
   </label>
+  <label class="settings-toggle" for="extendedSuffixToggle">
+    <span>
+      <strong>Buchstaben/Zeichen am Ende erlauben</strong>
+      <small>Für Endungen wie 3+1 oder 3ed2. Aus: nach „-“ nur Zahlen, z. B. 0374.</small>
+    </span>
+    <input id="extendedSuffixToggle" type="checkbox">
+  </label>
   <label class="settings-toggle" for="diagnosticsToggle">
     <span>
       <strong>Diagnosekonsole anzeigen</strong>
@@ -493,15 +500,15 @@ const RULES=[
  {wl:'0123456789',norm:s=>s.replace(/\D/g,''),valid:s=>/^(10|[1-9])$/.test(s)},
  {wl:'0123456789',norm:s=>s.replace(/\D/g,''),valid:s=>/^\d+$/.test(s)},
  {wl:'ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ',norm:s=>s.normalize('NFC').toUpperCase().replace(/[^A-ZÄÖÜ]/g,''),valid:s=>/^[A-ZÄÖÜ]{3,4}$/.test(s)},
- {wl:'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜabcdefghijklmnopqrstuvwxyzäöü+./-',norm:s=>s.normalize('NFC').replace(/\s+/g,'').replace(/[^0-9A-Za-zÄÖÜäöü+./-]/g,''),valid:s=>/^[0-9A-Za-zÄÖÜäöü+./-]{1,12}$/.test(s)}
+ {get wl(){return extendedSuffixEnabled?'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜabcdefghijklmnopqrstuvwxyzäöü+./-':'0123456789'},norm:s=>normalizeTokenForPosition(s,3).value,valid:s=>extendedSuffixEnabled?/^[0-9A-Za-zÄÖÜäöü+./-]{1,12}$/.test(s):/^\d{1,12}$/.test(s)}
 ];
 const video=document.getElementById('video'),frame=document.getElementById('frame'),statusEl=document.getElementById('status'),startBtn=document.getElementById('start'),stopBtn=document.getElementById('stop'),sig=document.getElementById('sig'),openBtn=document.getElementById('open'),errorEl=document.getElementById('error'),dot=document.getElementById('dot'),debugEl=document.getElementById('debug');
 const cameraInfo=document.getElementById('cameraInfo'),frameInfo=document.getElementById('frameInfo'),burstInfo=document.getElementById('burstInfo'),ocrInfo=document.getElementById('ocrInfo'),candidateInfo=document.getElementById('candidateInfo'),devLog=document.getElementById('devLog'),clearLog=document.getElementById('clearLog'),copyDiagnosis=document.getElementById('copyDiagnosis'),diagnosisText=document.getElementById('diagnosisText'),diagFrameCanvas=document.getElementById('diagFrameCanvas'),diagLineImages=document.getElementById('diagLineImages'),diagMirrorLabel=document.getElementById('diagMirrorLabel');
-const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),openInNewTabToggle=document.getElementById('openInNewTabToggle'),autoCameraToggle=document.getElementById('autoCameraToggle'),diagnosticsToggle=document.getElementById('diagnosticsToggle'),clearScanHistoryButton=document.getElementById('clearScanHistoryButton'),scanHistorySettingsValue=document.getElementById('scanHistorySettingsValue'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
+const menuButton=document.getElementById('menuButton'),settingsMenu=document.getElementById('settingsMenu'),autoOpenToggle=document.getElementById('autoOpenToggle'),openInNewTabToggle=document.getElementById('openInNewTabToggle'),autoCameraToggle=document.getElementById('autoCameraToggle'),extendedSuffixToggle=document.getElementById('extendedSuffixToggle'),diagnosticsToggle=document.getElementById('diagnosticsToggle'),clearScanHistoryButton=document.getElementById('clearScanHistoryButton'),scanHistorySettingsValue=document.getElementById('scanHistorySettingsValue'),editFrameButton=document.getElementById('editFrameButton'),resetFrameButton=document.getElementById('resetFrameButton'),frameSettingsValue=document.getElementById('frameSettingsValue'),frameEditControls=document.getElementById('frameEditControls'),confirmFrameButton=document.getElementById('confirmFrameButton');
 const mainEl=document.getElementById('main'),devConsole=document.getElementById('devConsole'),scanHistoryList=document.getElementById('scanHistoryList'),scanHistoryCount=document.getElementById('scanHistoryCount');
-let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null;
+let stream=null,worker=null,workerPromise=null,timer=null,busy=false,invalid=0,history=[],accepted='',manualUntil=0,currentWL='',currentPSM='',lastAcceptedAt=0,cycleNo=0,ocrStartedAt=0,previewMirrored=false,diagnosisCycles=[],cameraDiagnosis=null,extendedSuffixEnabled=false;
 
-const SCANNER_BUILD='2026-08-14-auto-camera-v8';
+const SCANNER_BUILD='2026-08-14-suffix-settings-v10';
 const FAST_OCR_TARGET_HEIGHT=480;
 const FAST_ACCEPT_CONFIDENCE=65;
 const FRAME_MIN_CONTRAST=22;
@@ -591,6 +598,7 @@ function updateDiagnosisText(){
   }
 
   out.push('recognition: FAST_PATH single-frame + gray/block first; robust whole-frame fallbacks');
+  out.push(`suffix_mode: ${extendedSuffixEnabled?'EXTENDED (letters/symbols allowed)':'NUMERIC ONLY'}`);
   out.push(`auto_open: ${autoOpenEnabled?'ON':'OFF'}`);
   out.push(`open_target: ${openTarget==='current'?'CURRENT_TAB':'NEW_TAB'}`);
   out.push(`auto_camera: ${autoCameraEnabled?'ON':'OFF'}`);
@@ -700,6 +708,7 @@ const FRAME_STORAGE_KEY='sthbasel-signature-scanframe-v1';
 const AUTO_OPEN_STORAGE_KEY='sthbasel-signature-auto-open-v1';
 const OPEN_TARGET_STORAGE_KEY='sthbasel-signature-open-target-v1';
 const AUTO_CAMERA_STORAGE_KEY='sthbasel-signature-auto-camera-v1';
+const EXTENDED_SUFFIX_STORAGE_KEY='sthbasel-signature-extended-suffix-v1';
 const DIAGNOSTICS_STORAGE_KEY='sthbasel-signature-diagnostics-v1';
 const SCAN_HISTORY_STORAGE_KEY='sthbasel-signature-history-v1';
 
@@ -786,6 +795,32 @@ function saveAutoCameraSetting(){
   if(autoCameraEnabled&&!stream&&!frameEditing){
     startCamera();
   }
+}
+
+function loadExtendedSuffixSetting(){
+  try{
+    extendedSuffixEnabled=localStorage.getItem(EXTENDED_SUFFIX_STORAGE_KEY)==='1';
+  }catch(_){
+    extendedSuffixEnabled=false;
+  }
+  extendedSuffixToggle.checked=extendedSuffixEnabled;
+}
+
+function saveExtendedSuffixSetting(){
+  extendedSuffixEnabled=Boolean(extendedSuffixToggle.checked);
+  try{
+    localStorage.setItem(
+      EXTENDED_SUFFIX_STORAGE_KEY,
+      extendedSuffixEnabled?'1':'0'
+    );
+  }catch(_){}
+
+  resetRecognitionForSuffixMode();
+  logDev(
+    'info',
+    `Signaturende: ${extendedSuffixEnabled?'Buchstaben/Zeichen erlaubt':'nur Zahlen'}`
+  );
+  updateDiagnosisText();
 }
 
 function applyDiagnosticsVisibility(){
@@ -939,10 +974,12 @@ loadAutoOpenSetting();
 loadDiagnosticsSetting();
 loadOpenTargetSetting();
 loadAutoCameraSetting();
+loadExtendedSuffixSetting();
 loadScanHistory();
 autoOpenToggle.addEventListener('change',saveAutoOpenSetting);
 openInNewTabToggle.addEventListener('change',saveOpenTargetSetting);
 autoCameraToggle.addEventListener('change',saveAutoCameraSetting);
+extendedSuffixToggle.addEventListener('change',saveExtendedSuffixSetting);
 diagnosticsToggle.addEventListener('change',saveDiagnosticsSetting);
 clearScanHistoryButton.addEventListener('click',clearScanHistory);
 
@@ -1638,10 +1675,41 @@ function normalizeTokenForPosition(raw,pos){
   }
 
   /*
-   * Vierte Zeile ist absichtlich liberal: Zahlen sind der Normalfall,
-   * aber Editionen wie "1ed4", Buchstaben und Sonderzeichen müssen möglich
-   * bleiben. Leerzeichen werden entfernt, Groß-/Kleinschreibung bleibt erhalten.
+   * Vierte Zeile / Teil nach dem Bindestrich:
+   * Standardmäßig werden ausschließlich Ziffern akzeptiert. Die Zeichenfolge
+   * bleibt dabei unverändert als String erhalten, sodass führende Nullen wie
+   * "0374" nicht verloren gehen. Nur bei aktivierter Einstellung „Buchstaben/Zeichen am Ende erlauben“ sind
+   * die seltenen Buchstaben und Sonderzeichen zugelassen.
    */
+  if(!extendedSuffixEnabled){
+    const map={
+      O:'0',o:'0',Q:'0',
+      I:'1',i:'1',L:'1',l:'1','|':'1',
+      Z:'2',z:'2',
+      S:'5',s:'5',
+      B:'8'
+    };
+
+    let out='';
+    for(const ch of s){
+      if(/[0-9]/.test(ch)){
+        out+=ch;
+      }else if(map[ch]!==undefined){
+        out+=map[ch];
+        corrections++;
+      }else{
+        return{raw:String(raw||''),value:s,valid:false,corrections:99};
+      }
+    }
+
+    return{
+      raw:String(raw||''),
+      value:out,
+      valid:/^\d{1,12}$/.test(out),
+      corrections
+    };
+  }
+
   s=s.replace(/[^0-9A-Za-zÄÖÜäöü+./-]/g,'');
   return{
     raw:String(raw||''),
@@ -1679,9 +1747,10 @@ function scoreFourLines(rawLines,indexes,ocrConfidence){
     const prefix=`${parsed[0].value}.${parsed[1].value}`;
     if(KNOWN_PREFIXES.has(prefix))score+=42;
 
-    // Zahlen sind in Zeile 4 mit Abstand der häufigste Fall.
-    if(/^\d+$/.test(parsed[3].value))score+=18;
-    else if(/\d/.test(parsed[3].value))score+=8;
+    // Im erweiterten Modus bleiben reine Zahlen wahrscheinlicher; im
+    // Standardmodus sind andere Zeichen ohnehin bereits ungültig.
+    if(/^\d+$/.test(parsed[3].value))score+=extendedSuffixEnabled?18:28;
+    else if(extendedSuffixEnabled&&/\d/.test(parsed[3].value))score+=8;
 
     score+=Math.max(0,Math.min(100,ocrConfidence))*.12;
   }
@@ -1749,7 +1818,9 @@ function bestCandidateFromRaw(raw,ocrConfidence=0){
 
 async function ocrWholeAttempt(canvas,name,psm,psmName){
   const w=await ensureOCR();
-  const whitelist='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜabcdefghijklmnopqrstuvwxyzäöü+./-';
+  const whitelist=extendedSuffixEnabled
+    ?'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜabcdefghijklmnopqrstuvwxyzäöü+./-'
+    :'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ';
 
   if(currentWL!==whitelist||currentPSM!==psm){
     await w.setParameters({
@@ -2202,6 +2273,28 @@ function historySummary(){
     .join(', ') || 'leer';
 }
 
+function resetRecognitionForSuffixMode(){
+  invalid=0;
+  history=[];
+  lastAcceptedAt=0;
+  const previousAccepted=accepted;
+  accepted='';
+
+  if(previousAccepted&&sig.value.trim()===previousAccepted){
+    sig.value='';
+    openBtn.disabled=true;
+    openBtn.textContent='Öffnen';
+  }
+
+  setSummary(candidateInfo,'Kandidat','—');
+  updateDiagnosisText();
+
+  if(stream&&!frameEditing){
+    setStatus(extendedSuffixEnabled?'Ende: Zeichen erlaubt':'Ende: nur Zahlen');
+    schedule(80);
+  }
+}
+
 async function loop(){
   if(!stream||frameEditing)return;
   if(video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA||!video.videoWidth){
@@ -2344,7 +2437,7 @@ clearLog.addEventListener('click',()=>{
   updateDiagnosisText();
   logDev('info','Konsole und Diagnosehistorie geleert.');
 });
-logDev('info',`Entwicklungsmodus bereit. Desktop-Webcam gespiegelt; Smartphone normal. Auto-Open=${autoOpenEnabled?'AN':'AUS'} · Ziel=${openTarget==='current'?'aktueller Tab':'neuer Tab'} · Auto-Kamera=${autoCameraEnabled?'AN':'AUS'} · Diagnose=${diagnosticsEnabled?'AN':'AUS'} · Verlauf=${scanHistoryEntries.length}.`);
+logDev('info',`Entwicklungsmodus bereit. Desktop-Webcam gespiegelt; Smartphone normal. Ende=${extendedSuffixEnabled?'ERWEITERT':'NUR ZAHLEN'} · Auto-Open=${autoOpenEnabled?'AN':'AUS'} · Ziel=${openTarget==='current'?'aktueller Tab':'neuer Tab'} · Auto-Kamera=${autoCameraEnabled?'AN':'AUS'} · Diagnose=${diagnosticsEnabled?'AN':'AUS'} · Verlauf=${scanHistoryEntries.length}.`);
 updateDiagnosisText();
 startBtn.addEventListener('click',startCamera);
 stopBtn.addEventListener('click',()=>stopCamera(true));
